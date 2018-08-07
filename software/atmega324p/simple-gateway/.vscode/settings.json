@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "global.h": "c",
+        "stdio.h": "c",
+        "io.h": "c"
+    },
+    "cpplint": {
+        "lineLength": 140,
+        "root": "src",
+        "filters": [ "-whitespace/parens", "-whitespace/blank_line", "-readability/casting", "-legal/copyright", "-build/include" ]
+    }
+}

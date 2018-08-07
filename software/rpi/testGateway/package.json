@@ -1,0 +1,34 @@
+{
+    "name": "testGateway",
+    "version": "0.0.1",
+    "description": "",
+    "main": "main.js",
+    "scripts": {
+        "clean": "./node_modules/gulp/bin/gulp.js clean",
+        "build": "./node_modules/gulp/bin/gulp.js build",
+        "prestart": "./node_modules/gulp/bin/gulp.js cleanAndBuild",
+        "start": "node dist/main.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "typescript",
+        "remote",
+        "modbus"
+    ],
+    "author": "Manfred Steiner",
+    "license": "MIT",
+    "private": true,
+    "repository": "https://github.com/ManfredSteiner/kicad",
+    "dependencies": {
+        "@types/nconf": "0.0.37",
+        "@types/node": "^10.5.1",
+        "@types/serialport": "^6.0.3",
+        "@types/sprintf-js": "^1.1.0",
+        "debug-sx": "^0.1.7",
+        "morgan": "^1.9.0",
+        "nconf": "^0.10.0",
+        "serialport": "^6.2.1",
+        "sprintf-js": "^1.1.1"
+    },
+    "devDependencies": {}
+}
