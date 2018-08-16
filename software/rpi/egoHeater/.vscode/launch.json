@@ -1,0 +1,25 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach",
+            "type": "node",
+            "request": "attach",
+            // "trace": true,
+            "stopOnEntry": false,
+            "port": 9229,
+            "address": "rpi",
+            "restart": false,
+            "localRoot": "${workspaceRoot}/server",
+            "remoteRoot": "/home/pi/egoHeater/server",
+            "sourceMaps": true,
+            // "program": "${workspaceRoot}/server/src/main.ts",
+            "smartStep": true
+            
+        }
+    ]
+}
+

@@ -1,0 +1,23 @@
+// keybindings are only allowed globally and in user context
+//
+// Copy this content to ...
+//   Linux:   ~/.config/Code/User/settings.json
+//   Mac:     $HOME/Library/Application Support/Code/User/keybindings.json
+//   Windows: %APPDATA%\Code\User\keybindings.json
+
+[
+    {
+        "key": "ctrl+alt+v",
+        "command": "workbench.action.tasks.runTask",
+        "args": "cleanAndBuild"
+    },{
+        "key": "ctrl+alt+b",
+        "command": "workbench.action.tasks.runTask",
+        "args": "builds"
+    },
+    {
+        "key": "ctrl+alt+c",
+        "command": "workbench.action.tasks.runTask",
+        "args": "clean"
+    }
+]

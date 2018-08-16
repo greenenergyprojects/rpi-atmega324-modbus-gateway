@@ -287,13 +287,6 @@ void app_handleUart1Byte (uint8_t data, uint8_t status) {
         }
         sei();
         app.gateway.lastModbusByte[1] = app.gateway.lastModbusByte[0];
-        
-        static uint8_t cnt = 0;
-        cnt++;
-        if (cnt % 30 == 10) {
-            data = 0;
-        }
-        
         app.gateway.lastModbusByte[0] = data;
         app.gateway.crc = app_updateModbusCrc(app.gateway.crc, data);
     }

@@ -1,0 +1,21 @@
+{
+    "eslint.enable": false,
+    "files.exclude": {
+        "**/node_modules/": true,
+        "**/*.code-workspace": true,
+        "**/README.md": false,
+        "**/.sftp*": true,
+        "**/.gitkeep": true,
+        "**/dist": true,
+        "**/old": true,
+        ".vscode/": true,
+        "**/.gitignore": true,
+        "**/LICENSE": true,
+        "*.log": true,
+        "**/package-lock.json": true,
+        "**/package.json": true,
+        "**/gulpfile.js": true,
+        "**/tsconfig.json": true,
+        "**/tslint.json": true
+    }
+}

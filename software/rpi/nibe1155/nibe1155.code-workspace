@@ -1,0 +1,16 @@
+{
+    "folders": [
+        // {
+        //    "uri": "sftp://pi@rpi/home/pi/nibe1155/server/dist?debug=0&mode=664&key=id_rsa_rpi&passphrase=&noPhraseFile=1",
+        //     "name": "egoHeater-server-dist"
+        //},
+        //{
+        //   "uri": "sftp://pi@rpi/home/pi/nibe1155/ngx/dist?debug=0&mode=664&key=id_rsa_rpi&passphrase=&noPhraseFile=1",
+        //    "name": "egoHeater-client-dist"
+        //},
+        {
+            "path": "./",
+            "name": "local"
+        }
+    ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "egoHeater",
+  "version": "0.0.1",
+  "description": "Test program for EGO Smart Heater (Modbus)",
+  "scripts": {
+    "clean": "cd server; rm -rf dist; cd ../ngx; rm -rf dist",
+    "build": "# use builds (server), buildc (client), buildt (ngx for test), buildr (ngx for release)",
+    "builds": "cd server; ./node_modules/gulp/bin/gulp.js build",
+    "buildc": "bin/createLinks",
+    "buildt": "cd ngx; ng build --prod --output-hashing none",
+    "buildr": "cd ngx; rm -rf dist/*; rm -rf release/*; ng build --prod; mv dist/* release; cd ..; bin/createLinks",
+    "prestart": "bin/createLinks; cd server; ./node_modules/gulp/bin/gulp.js build",
+    "start": "cd server; node dist/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Manfred Steiner",
+  "license": "MIT",
+  "private": true,
+  "repository": "https://github.com/greenenergyprojects/rpi-atmega324-modbus-gateway"
+}

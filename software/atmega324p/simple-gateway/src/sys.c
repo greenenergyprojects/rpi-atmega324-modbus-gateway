@@ -72,10 +72,11 @@ void sys_init () {
     UBRR1L = (F_CPU/GLOBAL_UART1_BITRATE + 4)/8 - 1;
     UBRR1H = 0x00;
     UCSR1A = (1 << U2X1);
+    // UCSR1C = (1 << UPM11) | (1 << UCSZ11) | (1 << UCSZ10);
     UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
     UCSR1B = (1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1);
-    sys.modbus[0].dT1_35 = 70 * 12000000L / 16 / GLOBAL_UART1_BITRATE;
-    sys.modbus[0].dT1_15 = 30 * 12000000L / 16 / GLOBAL_UART1_BITRATE;
+    sys.modbus[0].dT1_35 = 70 * 12000000L / 16 / GLOBAL_UART1_BITRATE;  // correct for even parity ?
+    sys.modbus[0].dT1_15 = 30 * 12000000L / 16 / GLOBAL_UART1_BITRATE;  // correct for even parity ?
     OCR1A = sys.modbus[0].dT1_35;
 
     // SPI Slave
