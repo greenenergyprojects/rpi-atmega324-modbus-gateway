@@ -66,6 +66,7 @@ if (logfileConfig) {
 import { ModbusSerial } from './modbus/modbus-serial';
 import { ModbusRequest, ModbusRequestFactory } from './modbus/modbus-request';
 import { Nibe1155 } from './devices/nibe1155';
+import { Statistics } from './statistics';
 
 let modbus: ModbusSerial;
 const regTab: { [ id: number ]: IRegister } = {};
@@ -74,6 +75,7 @@ doStartup();
 
 async function doStartup () {
 
+    Statistics.createInstance(nconf.get('statistics'));
     modbus = new ModbusSerial();
     await modbus.open();
     const d = new Nibe1155(modbus);

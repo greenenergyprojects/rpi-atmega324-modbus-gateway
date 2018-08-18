@@ -11,7 +11,8 @@ import { Nibe1155Modbus, Nibe1155ModbusAttributes, INibe1155 } from './nibe1155-
 import { ModbusSerial } from '../modbus/modbus-serial';
 import { ModbusRequest, ModbusRequestFactory } from '../modbus/modbus-request';
 import { ModbusAsciiFrame } from '../modbus/modbus-ascii-frame';
-import { fstat } from 'fs';
+import { Statistics } from '../statistics';
+import { MonitorRecord } from '../client/monitor-record';
 
 // abstract class Nibe1155 extends { [ id in Nibe1155ModbusAttributes ]: Nibe1155Value } = {
 
@@ -162,6 +163,7 @@ export class Nibe1155 {
                 }
             }
             this.writeLog(this.toNibe1155ValuesObject());
+            Statistics.Instance.handleMonitorRecord(MonitorRecord.createFromRawData(this));
             // debug.info('%O', this.toNibe1155ValuesObject());
         } catch (err) {
             debug.warn('polling LOG.SET ids fails\n%e', err);
@@ -317,24 +319,17 @@ export class Nibe1155 {
 
     private writeLog (x: INibe1155Values) {
         const now = new Date();
-        const fn = sprintf('/var/log/fronius/nibe1155_%04d-%02d-%02d.csv', now.getFullYear(), now.getMonth() + 1, now.getDate());
-        let data = '';
-        let header = fs.existsSync(fn) ? null : '';
-        let first = true;
+        const date = sprintf('%04d-%02d-%02d', now.getFullYear(), now.getMonth() + 1, now.getDate());
+        const fn = sprintf('/var/log/fronius/nibe1155_%s.csv', date);
+        let data = sprintf('"%02d:%02d:%02d"', now.getHours(), now.getMinutes(), now.getSeconds());
+        let header = fs.existsSync(fn) ? null : sprintf('"Time (%s)"', date);
         for (const att in x) {
             if (!x.hasOwnProperty(att)) { continue; }
             const v = (<any>this)[att];
-            if (!v || !(v instanceof Nibe1155Value)) { continue; }
-            if (first) {
-                first = false;
-            } else {
-                if (header !== null) { header += ','; }
-                data += ',';
-            }
             if (header !== null) {
-                header += sprintf('"%s/%s"', v.label, v.unit);
+                header += sprintf(',"%s/%s"', v.label, v.unit);
             }
-            data += sprintf('"%s"', v.value);
+            data += sprintf(',"%s"', v.value);
         }
         if (header !== null) {
             fs.writeFileSync(fn, header + '\n' + data.replace(/\./g, ',') + '\n');
