@@ -63,11 +63,11 @@ export class Statistics {
     // ***********************************************
 
     private _config: IStatisticsConfig;
-    private _timer: NodeJS.Timer;
     private _handleMonitorRecordCount = 0;
     private _history: StatisticsRecord [] = [];
     private _current: StatisticsRecordFactory;
     private _writeFileLines: IWriteFileLine [] = [];
+    private _latest: MonitorRecord;
 
     private constructor (config?: IStatisticsConfig) {
         config = config || nconf.get('statistics');
@@ -110,7 +110,13 @@ export class Statistics {
             this._current = new StatisticsRecordFactory(Statistics.CSVHEADER);
         }
         this._current.addMonitorRecord(d);
+        this._latest = d;
     }
+
+    public get latest (): MonitorRecord {
+        return this._latest;
+    }
+
 
     private async init () {
         if (this._config.disabled) { return; }

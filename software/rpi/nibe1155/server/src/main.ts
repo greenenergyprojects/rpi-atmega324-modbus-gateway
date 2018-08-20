@@ -66,25 +66,71 @@ if (logfileConfig) {
 import { ModbusSerial } from './modbus/modbus-serial';
 import { ModbusRequest, ModbusRequestFactory } from './modbus/modbus-request';
 import { Nibe1155 } from './devices/nibe1155';
+import { HeatPump } from './devices/heat-pump';
 import { Statistics } from './statistics';
+import { Server } from './server';
 
 let modbus: ModbusSerial;
 const regTab: { [ id: number ]: IRegister } = {};
 
 doStartup();
 
+async function doHeatPumpControlling () {
+    const hp = HeatPump.Instance;
+    await hp.start('off');
+    await delay(5000);
+    hp.desiredMode = 'pumpsOn';
+    await delay(15000);
+    hp.desiredMode = 'off';
+    await delay(60000);
+    await hp.stop();
+}
+
+
 async function doStartup () {
 
     Statistics.createInstance(nconf.get('statistics'));
     modbus = new ModbusSerial();
     await modbus.open();
-    const d = new Nibe1155(modbus);
     try {
-        await d.start();
+        await Nibe1155.createInstance(modbus);
+        await HeatPump.createInstance(Nibe1155.Instance);
+        await startupServer();
     } catch (err) {
         debug.warn(err);
     }
+    // doHeatPumpControlling();
+
     return;
+}
+
+async function startupServer (): Promise<void> {
+    const configServer = nconf.get('server');
+    if (configServer && configServer.start) {
+        await Server.Instance.start();
+    }
+}
+
+async function delay (ms: number) {
+    return new Promise<void>( (res, rej) => {
+        setTimeout( () => {
+            res();
+        }, ms);
+    });
+}
+
+
+interface IRegister {
+    id: number;
+    logset: boolean;
+    unit: string;
+    size: 'u8' | 's8' | 'u16' | 's16' | 'u32' | 's32';
+    factor: 0.1 | 1 | 10 | 100;
+    mode: 'R' | 'R/W';
+    name: string;
+    help?: string;
+}
+
 
 
     // initRegTab();
@@ -126,7 +172,7 @@ async function doStartup () {
     //     fs.appendFileSync('/var/log/fronius/nibe.csv', sLog.replace(/\./g, ','));
     //     // await delay(1000);
     // }
-}
+
 
 
 
@@ -577,22 +623,4 @@ async function doStartup () {
 
 
 
-async function delay (ms: number) {
-    return new Promise<void>( (res, rej) => {
-        setTimeout( () => {
-            res();
-        }, ms);
-    });
-}
 
-
-interface IRegister {
-    id: number;
-    logset: boolean;
-    unit: string;
-    size: 'u8' | 's8' | 'u16' | 's16' | 'u32' | 's32';
-    factor: 0.1 | 1 | 10 | 100;
-    mode: 'R' | 'R/W';
-    name: string;
-    help?: string;
-}

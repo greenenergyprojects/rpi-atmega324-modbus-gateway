@@ -25,7 +25,7 @@ export abstract class Value implements IValue {
         this._unit = data.unit || '';
         this._help = data.help || '';
         if (typeof data.value !== 'number') {
-            this._value = null;
+            this._value = Number.NaN;
             this._valueAt = null;
         } else {
             this._value = data.value;

@@ -7,6 +7,8 @@ export interface INibe1155Value extends IValue {
     size: 'u8' | 's8' | 'u16' | 's16' | 'u32' | 's32';
     type: 'R' | 'R/W';
     rawValue?: number;
+    oldValue?: number;
+    oldValueAt?: Date | number;
 }
 
 export class Nibe1155Value extends Value {
@@ -15,6 +17,8 @@ export class Nibe1155Value extends Value {
     protected _size: 'u8' | 's8' | 'u16' | 's16' | 'u32' | 's32';
     protected _type: 'R' | 'R/W';
     protected _rawValue: number;
+    protected _oldValue?: number;
+    protected _oldValueAt?: Date;
 
     constructor (data: INibe1155Value) {
         super(data);
@@ -33,6 +37,20 @@ export class Nibe1155Value extends Value {
             this._rawValue = data.rawValue;
         } else {
             this._rawValue = null;
+        }
+        if (typeof data.oldValue !== 'number') {
+            this._oldValue = Number.NaN;
+            this._oldValueAt = null;
+        } else {
+            this._oldValue = data.oldValue;
+            if (typeof data.oldValueAt === 'number') {
+                this._oldValueAt = new Date(data.oldValueAt);
+            } else if (data.valueAt instanceof Date) {
+                this._oldValueAt = new Date(data.oldValueAt);
+            } else {
+                this._oldValue = Number.NaN;
+                this._oldValueAt = null;
+            }
         }
     }
 
@@ -56,8 +74,25 @@ export class Nibe1155Value extends Value {
         return this._rawValue;
     }
 
+    public get oldValue (): number {
+        return this._oldValue;
+    }
+
+    public get oldValueAt (): Date {
+        return this._oldValueAt;
+    }
+
+    public get isValueChanged (): boolean {
+        if (this._oldValueAt === null ) {
+            return this._valueAt !== null;
+        }
+        return this._oldValueAt !== this._valueAt && this._oldValue !== this._value;
+    }
+
     public setRawValue (value: number, at: Date) {
         this._rawValue = value;
+        const oldValue = this._value;
+        const oldValueAt = this._valueAt;
         /* tslint:disable:no-bitwise */
         switch (this._size) {
             case 'u8':  { const x = (value &       0xff) / this._factor; super.setValue(x, at); break; }
@@ -71,6 +106,8 @@ export class Nibe1155Value extends Value {
                 throw new Error('unsupported size ' + this._size);
         }
         /* tslint:enable:no-bitwise */
+        this._oldValue = oldValue;
+        this._oldValueAt = oldValueAt;
     }
 
     public toObject (preserveDate?: boolean): INibe1155Value {
