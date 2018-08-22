@@ -21,12 +21,11 @@ export abstract class Action {
     public finish (error?: Error) {
         if (this._finishedAt) { throw new Error('action already finished'); }
         this._finishedAt = new Date();
-        const parentName = Object.getPrototypeOf(Object.getPrototypeOf(this)).constructor.name;
         if (error) {
             this._errors.push(error);
-            debug.warn('Action %s finished with error %s', parentName);
+            debug.warn('Action %s finished with error %s', this.constructor.name);
         } else {
-            debug.info('Action %s finished successful', parentName);
+            debug.info('Action %s finished successful', this.constructor.name);
         }
     }
 

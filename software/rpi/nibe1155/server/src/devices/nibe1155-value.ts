@@ -1,5 +1,6 @@
 
 import { Value, IValue } from './value';
+import { sprintf } from 'sprintf-js';
 
 export interface INibe1155Value extends IValue {
     id: number;
@@ -89,18 +90,39 @@ export class Nibe1155Value extends Value {
         return this._oldValueAt !== this._valueAt && this._oldValue !== this._value;
     }
 
+    public valueAsString (addTime: boolean) {
+        try {
+            if (this._valueAt instanceof Date) {
+                const s1 = sprintf(this._format, this._value).trim();
+                const s2 = addTime ? sprintf(' (@%s)',  this._valueAt.toLocaleTimeString()) : '';
+                return s1 + this._unit + s2;
+            } else {
+                return '';
+            }
+        } catch (err) {
+            return 'Error';
+        }
+    }
+
+    public clearValueChanged () {
+        this._oldValue = this._value;
+        this._oldValueAt = this._valueAt;
+    }
+
     public setRawValue (value: number, at: Date) {
         this._rawValue = value;
         const oldValue = this._value;
         const oldValueAt = this._valueAt;
         /* tslint:disable:no-bitwise */
         switch (this._size) {
-            case 'u8':  { const x = (value &       0xff) / this._factor; super.setValue(x, at); break; }
-            case 's8':  { const x = (value &       0xff) / this._factor; super.setValue(x >= 0x80 ? x - 0x100 : x, at); break; }
-            case 'u16': { const x = (value &     0xffff) / this._factor; super.setValue(x, at); break; }
-            case 's16': { const x = (value &     0xffff) / this._factor; super.setValue(x >= 0x8000 ? x - 0x10000 : x, at); break; }
-            case 'u32': { const x = (value & 0xffffffff) / this._factor; super.setValue(x, at); break; }
-            case 's32': { const x = (value & 0xffffffff) / this._factor; super.setValue(x >= 0x80000000 ? x - 0x100000000 : x, at); break; }
+            case 'u8':  { const x = (value &       0xff); super.setValue(x / this._factor, at); break; }
+            case 's8':  { const x = (value &       0xff); super.setValue((x >= 0x80 ? x - 0x100 : x ) / this._factor, at); break; }
+            case 'u16': { const x = (value &     0xffff); super.setValue(x / this._factor, at); break; }
+            case 's16': { const x = (value &     0xffff); super.setValue((x >= 0x8000 ? x - 0x10000 : x) / this._factor , at); break; }
+            case 'u32': { const x = (value & 0xffffffff); super.setValue(x / this._factor, at); break; }
+            case 's32': {
+                const x = (value & 0xffffffff); super.setValue((x >= 0x80000000 ? x - 0x100000000 : x) / this._factor, at); break;
+            }
             default:
                 super.setValue(Number.NaN, at);
                 throw new Error('unsupported size ' + this._size);
@@ -120,5 +142,94 @@ export class Nibe1155Value extends Value {
         return rv;
     }
 
+}
+
+
+export class Nibe1155PumpStateValue extends Nibe1155Value  {
+
+    constructor (data: INibe1155Value) {
+        super(data);
+    }
+
+    public valueAsString (addTime: boolean) {
+        try {
+            if (this._valueAt instanceof Date) {
+                let s1: string;
+                switch (this._value) {
+                    case 10: s1 = 'off'; break;
+                    case 15: s1 = 'starting'; break;
+                    case 20: s1 = 'on'; break;
+                    case 40: s1 = '10-day-mode'; break;
+                    case 40: s1 = 'calibration'; break;
+                    default: throw new Error('invalid value');
+                }
+                const s2 = addTime ? sprintf(' (@%s)',  this._valueAt.toLocaleTimeString()) : '';
+                return s1 + s2;
+            } else {
+                return '';
+            }
+        } catch (err) {
+            return 'Error (' + this._value + ')';
+        }
+    }
 
 }
+
+
+export class Nibe1155PumpModeValue extends Nibe1155Value  {
+
+    constructor (data: INibe1155Value) {
+        super(data);
+    }
+
+    public valueAsString (addTime: boolean) {
+        try {
+            if (this._valueAt instanceof Date) {
+                let s1: string;
+                switch (this._value) {
+                    case 10: s1 = 'intermittent'; break;
+                    case 20: s1 = 'continous'; break;
+                    case 30: s1 = 'economy'; break;
+                    case 40: s1 = 'auto'; break;
+                    default: throw new Error('invalid value');
+                }
+                const s2 = addTime ? sprintf(' (@%s)',  this._valueAt.toLocaleTimeString()) : '';
+                return s1 + s2;
+            } else {
+                return '';
+            }
+        } catch (err) {
+            return 'Error (' + this._value + ')';
+        }
+    }
+
+}
+
+export class Nibe1155OperationModeValue extends Nibe1155Value  {
+
+    constructor (data: INibe1155Value) {
+        super(data);
+    }
+
+    public valueAsString (addTime: boolean) {
+        try {
+            if (this._valueAt instanceof Date) {
+                let s1: string;
+                switch (this._value) {
+                    case 0: s1 = 'auto'; break;
+                    case 1: s1 = 'manual'; break;
+                    case 2: s1 = 'add heat only'; break;
+                    default: throw new Error('invalid value');
+                }
+                const s2 = addTime ? sprintf(' (@%s)',  this._valueAt.toLocaleTimeString()) : '';
+                return s1 + s2;
+            } else {
+                return '';
+            }
+        } catch (err) {
+            return 'Error (' + this._value + ')';
+        }
+    }
+
+}
+

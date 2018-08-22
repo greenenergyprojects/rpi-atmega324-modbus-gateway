@@ -1,10 +1,10 @@
 import * as debugsx from 'debug-sx';
-const debug: debugsx.ISimpleLogger = debugsx.createSimpleLogger('actions.ActionSwitchHeatPumpOff');
+const debug: debugsx.ISimpleLogger = debugsx.createSimpleLogger('actions.ActionSwitchBrinePumpOff');
 
 import { Action, ActionError } from './action';
 
 
-export class ActionSwitchHeatPumpOff extends Action {
+export class ActionSwitchBrinePumpOff extends Action {
 
     constructor () {
         super();
@@ -14,19 +14,18 @@ export class ActionSwitchHeatPumpOff extends Action {
         this._startedAt = new Date();
         for (let cnt = 0; cnt < 3; cnt++) {
             try {
-                await this._device.writeSupplyPumpMode('economy');
-                const v = await this._device.readSupplyPumpMode(0);
-                if (v !== 'economy') {
+                await this._device.writeBrinePumpMode('auto');
+                const v = await this._device.readBrinePumpMode(0);
+                if (v !== 'auto') {
                     throw new Error('wrong response ' + v);
                 }
                 this.finish();
                 return this;
             } catch (err) {
-                debug.warn(err);
                 this.addError(err);
             }
         }
-        throw new ActionError(this, 'setting heat pump mode "economy" fails');
+        throw new ActionError(this, 'setting brine pump mode "auto" fails');
     }
 
 }

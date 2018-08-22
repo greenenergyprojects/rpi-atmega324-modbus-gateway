@@ -175,7 +175,7 @@ export class ModbusSerial {
                     let err: any;
                     try {  f = new ModbusAsciiFrame(this._frame); } catch (e) { err = err; }
                     this._frame = null;
-                    if (!err && !f.lrcOk) { 
+                    if (!err && !f.lrcOk) {
                         err = new Error('LRC/CRC error on request');
                     }
                     const r = this._pending[0];

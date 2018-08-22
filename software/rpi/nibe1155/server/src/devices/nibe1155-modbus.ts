@@ -8,7 +8,7 @@ export type Nibe1155ModbusIds =
     40033 | 40067 | 40079 | 40081 | 40083 |
     47007 | 47011 | 47015 | 47019 | 47020 | 47021 | 47022 | 47023 | 47024 | 47025 | 47026 |
     47137 | 47138 | 47139 | 47206 | 47209 | 47212 | 47214 | 47370 | 47371 | 47376 | 47375 |
-    48072 | 
+    48072 |
     48659 | 48660 | 48661 | 48662 | 48663 | 48664;
 
 export interface INibe1155 {
@@ -51,7 +51,7 @@ export interface INibe1155 {
     operationalMode:       INibe1155Value;
     supplyPumpMode:        INibe1155Value;
     brinePumpMode:         INibe1155Value;
-    dmStartAddHeating:     INibe1155Value;
+    dmStartHeating:        INibe1155Value;
     addHeatingStep:        INibe1155Value;
     addHeatingMaxPower:    INibe1155Value;
     addHeatingFuse:        INibe1155Value;
@@ -114,14 +114,14 @@ export class Nibe1155Modbus {
         , 47137: { id: 47137, label: 'operationalMode',       type: 'R/W', unit: '',   size: 'u8',  factor: 1,   format: '%1d',     description: 'Operation mode of heat pump', help: '0=auto, 1=manual, 2=add heat only' }
         , 47138: { id: 47138, label: 'supplyPumpMode',        type: 'R/W', unit: '',   size: 'u8',  factor: 1,   format: '%2d',     description: 'Operation mode of heat medium pump', help: '10=intermittent, 20=continous, 30=economy, 40=auto' }
         , 47139: { id: 47139, label: 'brinePumpMode',         type: 'R/W', unit: '',   size: 'u8',  factor: 1,   format: '%2d',     description: 'Operation mode of brine pump', help: '10=intermittent, 20=continous, 30=economy, 40=auto' }
-        , 47206: { id: 47206, label: 'dmStartAddHeating',     type: 'R/W', unit: '',   size: 's16', factor: 1,   format: '%6d',     description: 'Degree minutes for start of addtional heater', help: '-1000 .. 30' }
+        , 47206: { id: 47206, label: 'dmStartHeating',        type: 'R/W', unit: '',   size: 's16', factor: 1,   format: '%6d',     description: 'Degree minutes for start of heating (compressro)', help: '-1000 .. -30' }
         , 47209: { id: 47209, label: 'addHeatingStep',        type: 'R/W', unit: '',   size: 's16', factor: 1,   format: '%6d',     description: 'Degree minutes for next step of additional heater', help: '' }
         , 47212: { id: 47212, label: 'addHeatingMaxPower',    type: 'R/W', unit: 'W',  size: 's16', factor: 0.1, format: '%4.02f',  description: 'Maximal power of additional heater', help: '0W ... 6000W' }
         , 47214: { id: 47214, label: 'addHeatingFuse',        type: 'R/W', unit: 'A',  size: 'u16', factor: 1,   format: '%3d',     description: 'Fuse current for heater', help: '0A ... 400A' }
         , 47370: { id: 47370, label: 'allowAdditiveHeating',  type: 'R/W', unit: '',   size: 'u8',  factor: 1,   format: '%1d',     description: 'Allow electrical heating', help: '0 .. 1' }
         , 47371: { id: 47371, label: 'allowHeating',          type: 'R/W', unit: '',   size: 'u8',  factor: 1,   format: '%1d',     description: 'Allow heat pump heating', help: '0 .. 1' }
-        , 47375: { id: 47375, label: 'stopTempHeating',       type: 'R/W', unit: '°C', size: 's16', factor: 10,  format: '%.5.01f', description: 'Heating stop temperature', help: '-20°C .. +40°C' }
-        , 47376: { id: 47376, label: 'stopTempAddHeating',    type: 'R/W', unit: '°C', size: 's16', factor: 10,  format: '%.5.01f', description: 'Additive Heating stop temperature', help: '-25°C .. 40°C' }
+        , 47375: { id: 47375, label: 'stopTempHeating',       type: 'R/W', unit: '°C', size: 's16', factor: 10,  format: '%5.01f', description: 'Heating stop temperature', help: '-20°C .. +40°C' }
+        , 47376: { id: 47376, label: 'stopTempAddHeating',    type: 'R/W', unit: '°C', size: 's16', factor: 10,  format: '%5.01f', description: 'Additive Heating stop temperature', help: '-25°C .. 40°C' }
         , 48072: { id: 48072, label: 'dmDiffStartAddHeating', type: 'R/W', unit: '',   size: 's16', factor: 1,   format: '%3d',     description: 'DM below last comp step to start elect. heat.', help: '?' }
         , 48659: { id: 48659, label: 'cutOffFrequActivated2', type: 'R/W', unit: '',   size: 's8',  factor: 1,   format: '%1d',     description: 'Cut of frequency activated 2', help: 'forbid start 2 ... stop 2' }
         , 48660: { id: 48660, label: 'cutOffFrequActivated1', type: 'R/W', unit: '',   size: 's8',  factor: 1,   format: '%1d',     description: 'Cut of frequency activated 1', help: 'forbid start 1 ... stop 1' }
@@ -173,7 +173,7 @@ export class Nibe1155Modbus {
         , operationalMode:       Nibe1155Modbus.regDefById[47137]
         , supplyPumpMode:        Nibe1155Modbus.regDefById[47138]
         , brinePumpMode:         Nibe1155Modbus.regDefById[47139]
-        , dmStartAddHeating:     Nibe1155Modbus.regDefById[47206]
+        , dmStartHeating:        Nibe1155Modbus.regDefById[47206]
         , addHeatingStep:        Nibe1155Modbus.regDefById[47209]
         , addHeatingMaxPower:    Nibe1155Modbus.regDefById[47212]
         , addHeatingFuse:        Nibe1155Modbus.regDefById[47214]
@@ -181,7 +181,7 @@ export class Nibe1155Modbus {
         , allowHeating:          Nibe1155Modbus.regDefById[47371]
         , stopTempHeating:       Nibe1155Modbus.regDefById[47375]
         , stopTempAddHeating:    Nibe1155Modbus.regDefById[47376]
-        , dmDiffStartAddHeating: Nibe1155Modbus.regDefById[47376]
+        , dmDiffStartAddHeating: Nibe1155Modbus.regDefById[48072]
         , cutOffFrequActivated2: Nibe1155Modbus.regDefById[48659]
         , cutOffFrequActivated1: Nibe1155Modbus.regDefById[48660]
         , cutOffFrequStart2:     Nibe1155Modbus.regDefById[48661]
