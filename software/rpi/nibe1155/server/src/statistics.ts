@@ -4,7 +4,8 @@ const debug: debugsx.IFullLogger = debugsx.createFullLogger('statistics');
 import * as fs from 'fs';
 import { sprintf } from 'sprintf-js';
 import * as nconf from 'nconf';
-import { MonitorRecord } from './client/monitor-record';
+import { Nibe1155MonitorRecord } from './client/nibe1155-monitor-record';
+import { Nibe1155Modbus } from './devices/nibe1155-modbus';
 
 interface IStatisticsConfig {
     disabled?: boolean;
@@ -23,8 +24,9 @@ export class Statistics {
           { id: 'cnt', label: 'Messwertanzahl', isRecordItem: true }
         , { id: 'first-time', label: 'von (%Y-%M-%D)', isRecordItem: true }
         , { id: 'last-time', label: 'bis', isRecordItem: true }
-        , { id: 'outdoorTemp',         unit: '°C', label: 't-Außen/°C' }
-        , { id: 'supplyTemp',          unit: '°C', label: 't-Puffer/°C' }
+        // , { id: 'outdoorTemp',         unit: '°C', label: 't-Außen/°C' }
+        , { id: 'calcSupplyTemp',      unit: '°C', label: 't-Puffer Soll/°C' }
+        , { id: 'supplyTemp',          unit: '°C', label: 't-Puffer Ist/°C' }
         , { id: 'degreeMinutes',       unit: '',   label: 'Gradminuten' }
         , { id: 'brinePumpSpeed',      unit: '%',  label: 'Solepumpe' }
         , { id: 'supplyPumpSpeed',     unit: '%',  label: 'Pufferpumpe' }
@@ -42,7 +44,39 @@ export class Statistics {
         , { id: 'compressorState',     unit: '',   label: 'Kompressor' }
         , { id: 'supplyPumpState',     unit: '',   label: 'Pufferpumpe' }
         , { id: 'brinePumpState',      unit: '',   label: 'Solepumpe' }
-        // , { id: 'energy-heater', unit: 'Wh', label: 'Energie', hideMin: true, hideAvg: true }
+        //
+        , { id: 'outdoorTemp',            label: 't-Außen/°C', isSingleValue: true }
+        , { id: 'roomTemp',               label: 't-Innen/°C', isSingleValue: true }
+        , { id: 'outdoorTempAverage',     label: 't-Außen-gemittelt/°C', isSingleValue: true }
+        , { id: 'heatCurveS1',            label: 'Heizkurve', isSingleValue: true }
+        , { id: 'supplyMinS1',            label: 'HK-t-Min/°C', isSingleValue: true }
+        , { id: 'supplyMaxS1',            label: 'HK-t-Max/°C', isSingleValue: true }
+        , { id: 'heatOffsetS1',           label: 'HK-t-Offset/°C', isSingleValue: true }
+        , { id: 'energyCompAndElHeater',  label: 'E-Total/kWh', isSingleValue: true }
+        , { id: 'energyCompressor',       label: 'E-Pump/kWh', isSingleValue: true }
+        , { id: 'alarm',                  label: 'Alarm', isSingleValue: true }
+        , { id: 'operationalMode',        label: 'Operation-Mode', isSingleValue: true }
+        , { id: 'supplyPumpMode',         label: 'Heizpumpe-Mode', isSingleValue: true }
+        , { id: 'brinePumpMode',          label: 'Solepumpe-Mode', isSingleValue: true }
+        , { id: 'cutOffFrequActivated1',  label: 'fcut1-activated', isSingleValue: true }
+        , { id: 'cutOffFrequActivated2',  label: 'fcut2-activated', isSingleValue: true }
+        , { id: 'cutOffFrequStart1',      label: 'fcut1-start/Hz', isSingleValue: true }
+        , { id: 'cutOffFrequStop1',       label: 'fcut1-stop/Hz', isSingleValue: true }
+        , { id: 'cutOffFrequStart2',      label: 'fcut2-start/Hz', isSingleValue: true }
+        , { id: 'cutOffFrequStop2',       label: 'fcut2-stop/Hz', isSingleValue: true }
+        , { id: 'compNumberOfStarts',     label: 'Compressor-Starts', isSingleValue: true }
+        , { id: 'compTotalOperationTime', label: 'Compressor-Hours/h', isSingleValue: true }
+        , { id: 'regMaxSupplyDiff',       label: 'Regler-MaxDiff/°C', isSingleValue: true }
+        , { id: 'regMinCompFrequ',        label: 'Regler-fMin/Hz', isSingleValue: true }
+        , { id: 'regMaxCompFrequ',        label: 'Regler-fMax/Hz', isSingleValue: true }
+        , { id: 'dmStartHeating',         label: 'StartHeizen/GM', isSingleValue: true }
+        , { id: 'dmDiffStartAddHeating',  label: 'StartElektrHeizen-Diff/GM', isSingleValue: true }
+        , { id: 'addHeatingStep',         label: 'ElektrHeizen-Step/GM', isSingleValue: true }
+        , { id: 'addHeatingMaxPower',     label: 'ElektrHeizen-PMAX/W', isSingleValue: true }
+        , { id: 'allowAdditiveHeating',   label: 'ElektrHeizen-Erlaubt', isSingleValue: true }
+        , { id: 'allowHeating',           label: 'Heizen-Erlaubt', isSingleValue: true }
+        , { id: 'stopTempHeating',        label: 't-stop-heizen/°C', isSingleValue: true }
+        , { id: 'stopTempAddHeating',     label: 't-stop-heizenElektr/°C', isSingleValue: true }
     ];
 
     public static get Instance (): Statistics {
@@ -67,7 +101,7 @@ export class Statistics {
     private _history: StatisticsRecord [] = [];
     private _current: StatisticsRecordFactory;
     private _writeFileLines: IWriteFileLine [] = [];
-    private _latest: MonitorRecord;
+    private _latest: Nibe1155MonitorRecord;
 
     private constructor (config?: IStatisticsConfig) {
         config = config || nconf.get('statistics');
@@ -103,8 +137,8 @@ export class Statistics {
         }
     }
 
-    public handleMonitorRecord (d: MonitorRecord) {
-        // debug.info('handleMonitorRecord %o', d);
+    public handleMonitorRecord (d: Nibe1155MonitorRecord) {
+        debug.finer('handleMonitorRecord %o', d);
         this._handleMonitorRecordCount++;
         if (!this._current) {
             this._current = new StatisticsRecordFactory(Statistics.CSVHEADER);
@@ -113,7 +147,15 @@ export class Statistics {
         this._latest = d;
     }
 
-    public get latest (): MonitorRecord {
+    public handleSingleValue (name: string, value: number, at: Date) {
+        debug.finer(sprintf('handleSingleValue %s %f %s', name, value, at));
+        if (!this._current) {
+            this._current = new StatisticsRecordFactory(Statistics.CSVHEADER);
+        }
+        this._current.addSingleValue(name, value, at);
+    }
+
+    public get latest (): Nibe1155MonitorRecord {
         return this._latest;
     }
 
@@ -137,7 +179,7 @@ export class Statistics {
                         default: debug.warn('invalid config/dbtyp'); break;
                     }
                 }
-                this._current = null;
+                this._current = new StatisticsRecordFactory(Statistics.CSVHEADER, this._current.singleValues);
             }
         }
     }
@@ -198,7 +240,8 @@ export interface IStatisticsRecord {
     valueCount: number;
     firstAt: Date | number;
     lastAt: Date | number;
-    values: IValue [];
+    minMaxValues: IMinMaxValue [];
+    singleValues: { [id: string]: ISingleValue };
 }
 
 export interface IHeaderItem {
@@ -208,35 +251,54 @@ export interface IHeaderItem {
     hideMin?: boolean;
     hideAvg?: boolean;
     hideMax?: boolean;
+    isSingleValue?: boolean;
     label?: string;
 }
 
-export interface IValue {
+export interface IMinMaxValue {
     id: string;
     min: number;
     avg: number;
     max: number;
 }
 
+export interface ISingleValue {
+    id: string;
+    at: Date | number;
+    value: number;
+}
+
 export class StatisticsRecord implements IStatisticsRecord  {
     protected _valueCount: number;
     protected _firstAt: Date;
     protected _lastAt: Date;
-    protected _values: IValue [];
+    protected _minMaxValues: IMinMaxValue [];
+    protected _singleValues: { [id: string]: ISingleValue };
 
-    public constructor (init?: IStatisticsRecord) {
+    public constructor (init?: IStatisticsRecord, singleValues?: { [id: string]: ISingleValue }) {
         if (!init) {
             this._valueCount = 0;
             this._firstAt = null;
             this._lastAt = null;
-            this._values = [];
+            this._minMaxValues = [];
+            this._singleValues = singleValues ? singleValues : {};
         } else {
             this._valueCount = init.valueCount;
             const fat = init.firstAt;
             this._firstAt = fat instanceof Date ? fat : new Date(fat);
             const lat = init.lastAt;
             this._lastAt = lat instanceof Date ? lat : new Date(lat);
-            this._values = init.values;
+            this._minMaxValues = init.minMaxValues;
+            this._singleValues = {};
+            for (const id in init.singleValues) {
+                if (!init.singleValues.hasOwnProperty(id)) { continue; }
+                const v = init.singleValues[id];
+                this._singleValues[id] = {
+                    id:   v.id,
+                    at: v.at instanceof Date ? v.at : new Date(v.at),
+                    value: v.value
+                };
+            }
         }
     }
 
@@ -252,17 +314,32 @@ export class StatisticsRecord implements IStatisticsRecord  {
         return this._lastAt;
     }
 
-    public get values (): IValue [] {
-        return this._values;
+    public get minMaxValues (): IMinMaxValue [] {
+        return this._minMaxValues;
+    }
+
+    public get singleValues (): { [ id: string ]: ISingleValue } {
+        return this._singleValues;
     }
 
     public toObject (preserveDate?: boolean): IStatisticsRecord {
         const rv: IStatisticsRecord = {
-            valueCount: this._valueCount,
-            firstAt:    preserveDate ? this._firstAt : this._firstAt.getTime(),
-            lastAt:     preserveDate ? this._lastAt : this._lastAt.getTime(),
-            values:     this._values
+            valueCount:    this._valueCount,
+            firstAt:       preserveDate ? this._firstAt : this._firstAt.getTime(),
+            lastAt:        preserveDate ? this._lastAt : this._lastAt.getTime(),
+            minMaxValues:  this._minMaxValues,
+            singleValues:  {}
         };
+        for (const id in this._singleValues) {
+            if (!this._singleValues.hasOwnProperty(id)) { continue; }
+            const v = this._singleValues[id];
+            const at = v.at instanceof Date ? v.at.getTime() : v.at;
+            rv.singleValues[id] = {
+                id:   v.id,
+                at: preserveDate ? new Date(at) : at,
+                value: v.value
+            };
+        }
         return rv;
     }
 
@@ -272,17 +349,18 @@ class StatisticsRecordFactory extends StatisticsRecord {
 
     private _header: IHeaderItem [];
 
-    constructor (header: IHeaderItem []) {
-        super();
+    constructor (header: IHeaderItem [], singleValues?: { [id: string]: ISingleValue }) {
+        super(null, singleValues);
         this._header = header;
         for (let i = 0; i < header.length; i++) {
             const h = header[i];
             if (h.isRecordItem) { continue; }
-            this._values.push({ id: h.id, min: Number.NaN, avg: Number.NaN, max: Number.NaN });
+            this._minMaxValues.push({ id: h.id, min: Number.NaN, avg: Number.NaN, max: Number.NaN });
         }
+
     }
 
-    public addMonitorRecord (r: MonitorRecord) {
+    public addMonitorRecord (r: Nibe1155MonitorRecord) {
         if (this.valueCount === 0) {
             this._firstAt = r.createdAt;
         }
@@ -294,13 +372,18 @@ class StatisticsRecordFactory extends StatisticsRecord {
                 offset--;
                 continue;
             }
-            const v = this._values[i + offset];
+            if (h.isSingleValue) {
+                continue;
+            }
+            const v = this._minMaxValues[i + offset];
             if (v.id !== h.id) {
                 debug.warn('error on header-id %s / value-id %s / index %d / offset %d', h.id, v.id, i, offset);
                 continue;
             }
+
             switch (h.id) {
-                case 'outdoorTemp':         this.handleValue(v, this._valueCount, r.outdoorTemp); break;
+                // case 'outdoorTemp':         this.handleValue(v, this._valueCount, r.outdoorTemp); break;
+                case 'calcSupplyTemp':      this.handleValue(v, this._valueCount, r.calcSupplyTemp); break;
                 case 'supplyTemp':          this.handleValue(v, this._valueCount, r.supplyTemp); break;
                 case 'degreeMinutes':       this.handleValue(v, this._valueCount, r.degreeMinutes); break;
                 case 'brinePumpSpeed':      this.handleValue(v, this._valueCount, r.brinePumpSpeed); break;
@@ -319,10 +402,22 @@ class StatisticsRecordFactory extends StatisticsRecord {
                 case 'compressorState':     this.handleValue(v, this._valueCount, r.compressorState); break;
                 case 'supplyPumpState':     this.handleValue(v, this._valueCount, r.supplyPumpState); break;
                 case 'brinePumpState':      this.handleValue(v, this._valueCount, r.brinePumpState); break;
-                default: debug.warn('unsupported id %s', h.id); break;
+                default: debug.warn('unsupported id %s for addMonitorRecord()', h.id); break;
             }
         }
         this._valueCount++;
+    }
+
+    public addSingleValue (name: string, value: number, at?: Date) {
+        if (typeof value !== 'number' || Number.isNaN(value)) {
+            debug.warn('cannot at single value %s name with invalid value %s', name, value);
+        } else {
+            this._singleValues[name] = {
+                id: name,
+                at: at || new Date(),
+                value: value
+            };
+        }
     }
 
     public toHeader (): string {
@@ -336,6 +431,10 @@ class StatisticsRecordFactory extends StatisticsRecord {
                 s = s.replace(/%Y/g, sprintf('%04d', now.getFullYear()));
                 s = s.replace(/%M/g, sprintf('%02d', now.getMonth() + 1));
                 s = s.replace(/%D/g, sprintf('%02d', now.getDate()));
+            } else if (h.isSingleValue) {
+                s = s + (first ? '' : ',');
+                s += '"SVAL(' + h.label + ')","SDAT(' + h.label + ')"';
+                first = false;
             } else {
                 if (!h.hideMin) {
                     s = s + (first ? '' : ',');
@@ -352,6 +451,7 @@ class StatisticsRecordFactory extends StatisticsRecord {
                     s += '"MAX(' + h.label + ')"';
                     first = false;
                 }
+
             }
         }
         return s;
@@ -361,18 +461,28 @@ class StatisticsRecordFactory extends StatisticsRecord {
         let s = '', offset = 0;
         for (let i = 0, first = true; i < this._header.length; i++, first = false) {
             const h = this._header[i];
-            let v: IValue;
-            if (h.isRecordItem) {
-                offset--;
-            } else {
-                v = this.values[i + offset];
-            }
-            s = s + (first ? '' : ',');
+            s += s.length > 0 ? ',' : '';
 
-            if (v && v.id !== h.id) {
-                debug.warn('error on header-id %s / value-id %s / index %d / offset %d', h.id, v.id, i, offset);
-                s += '"ERR","ERR","ERR"';
-            } else {
+            if (h.isSingleValue) {
+                offset -= 2;
+                const v = this._singleValues[h.id];
+                if (!v) {
+                    s += sprintf('"0",""'); // no value available
+                } else {
+                    const at = v.at instanceof Date ? v.at : new Date(v.at);
+                    const x = (<any>Nibe1155Modbus.regDefByLable)[h.id];
+                    let sv: string;
+                    if (x) {
+                        sv = sprintf(x.format, v.value).trim();
+                    } else {
+                        sv = sprintf('%.3f', v.value);
+                    }
+
+                    s += sprintf('"%s","%02d:%02d:%02d"', sv.replace(/\./g, ','), at.getHours(), at.getMinutes(), at.getSeconds());
+                }
+
+            } else if (h.isRecordItem) {
+                offset--;
                 switch (h.id) {
                     case 'cnt': {
                         s += this.valueCount.toString();
@@ -394,25 +504,36 @@ class StatisticsRecordFactory extends StatisticsRecord {
                         s += sprintf('"%02d:%02d:%02d"', this.lastAt.getHours(), this.lastAt.getMinutes(), this.lastAt.getSeconds());
                         break;
                     }
-                    case 'outdoorTemp': case 'supplyTemp':
-                    case 'supplyS1Temp': case 'supplyReturnTemp': case 'brineInTemp': case 'brineOutTemp': case 'condensorOutTemp':
-                    case 'hotGasTemp': case 'liquidLineTemp': case 'suctionTemp': {
-                        s += this.formatLineFragment(h, 1, v);
-                        break;
-                    }
+                    default: debug.warn('unsupported record Item id %s', h.id); break;
+                }
 
-                    case 'degreeMinutes': case 'brinePumpSpeed':  case 'supplyPumpSpeed':
-                    case 'compressorFrequency': case 'compressorInPower': case 'electricHeaterPower': {
-                        s += this.formatLineFragment(h, 0, v);
-                        break;
-                    }
+            } else {
+                const v = this.minMaxValues[i + offset];
+                if (v && v.id !== h.id) {
+                    debug.warn('error on header-id %s / value-id %s / index %d / offset %d', h.id, v.id, i, offset);
+                    s += '"ERR","ERR","ERR"';
+                } else {
+                    switch (h.id) {
+                        case 'calcSupplyTemp': case 'supplyTemp':
+                        case 'supplyS1Temp': case 'supplyReturnTemp': case 'brineInTemp': case 'brineOutTemp': case 'condensorOutTemp':
+                        case 'hotGasTemp': case 'liquidLineTemp': case 'suctionTemp': {
+                            s += this.formatLineFragment(h, 1, v);
+                            break;
+                        }
 
-                    case 'compressorState': case 'supplyPumpState': case 'brinePumpState': {
-                        s += this.formatLineFragment(h, 0, v);
-                        break;
-                    }
+                        case 'degreeMinutes': case 'brinePumpSpeed':  case 'supplyPumpSpeed':
+                        case 'compressorFrequency': case 'compressorInPower': case 'electricHeaterPower': {
+                            s += this.formatLineFragment(h, 0, v);
+                            break;
+                        }
 
-                    default: debug.warn('unsupported id %s', h.id); break;
+                        case 'compressorState': case 'supplyPumpState': case 'brinePumpState': {
+                            s += this.formatLineFragment(h, 0, v);
+                            break;
+                        }
+
+                        default: debug.warn('unsupported minMaxValues id %s', h.id); break;
+                    }
                 }
             }
 
@@ -420,7 +541,7 @@ class StatisticsRecordFactory extends StatisticsRecord {
         return s;
     }
 
-    private formatLineFragment (h: IHeaderItem, digits: number, values: IValue): string {
+    private formatLineFragment (h: IHeaderItem, digits: number, values: IMinMaxValue): string {
         let s = '';
         let k = 1;
         while (digits-- > 0) {
@@ -440,13 +561,13 @@ class StatisticsRecordFactory extends StatisticsRecord {
         return s.replace(/\./g, ',');
     }
 
-    private handleValue (v: IValue, cnt: number, x: number) {
+    private handleValue (v: IMinMaxValue, cnt: number, x: number) {
         this.calcMinimum(v, x);
         this.calcMaximum(v, x);
         this.calcAverage(v, cnt, x);
     }
 
-    private calcMinimum (v: IValue, x: number) {
+    private calcMinimum (v: IMinMaxValue, x: number) {
         if (Number.isNaN(v.min)) {
             v.min = x;
         } else {
@@ -454,7 +575,7 @@ class StatisticsRecordFactory extends StatisticsRecord {
         }
     }
 
-    private calcMaximum (v: IValue, x: number) {
+    private calcMaximum (v: IMinMaxValue, x: number) {
         if (Number.isNaN(v.max)) {
             v.max = x;
         } else {
@@ -462,7 +583,7 @@ class StatisticsRecordFactory extends StatisticsRecord {
         }
     }
 
-    private calcAverage (v: IValue, oldCnt: number, x: number) {
+    private calcAverage (v: IMinMaxValue, oldCnt: number, x: number) {
         if (Number.isNaN(v.avg)) {
             v.avg = x;
         } else {

@@ -8,13 +8,14 @@ import * as events from 'events';
 
 import { sprintf } from 'sprintf-js';
 
-import { Nibe1155Value, Nibe1155PumpStateValue, Nibe1155PumpModeValue, Nibe1155OperationModeValue } from './nibe1155-value';
+import { Nibe1155Value, Nibe1155CompressorStateValue, Nibe1155PumpStateValue, Nibe1155AlarmValue,
+         Nibe1155PumpModeValue, Nibe1155OperationModeValue } from './nibe1155-value';
 import { Nibe1155Modbus, INibe1155 } from './nibe1155-modbus';
 import { ModbusSerial } from '../modbus/modbus-serial';
 import { ModbusRequest, ModbusRequestFactory } from '../modbus/modbus-request';
 import { ModbusAsciiFrame } from '../modbus/modbus-ascii-frame';
 import { Statistics } from '../statistics';
-import { MonitorRecord } from '../client/monitor-record';
+import { Nibe1155MonitorRecord } from '../client/nibe1155-monitor-record';
 import { Value } from './value';
 
 // abstract class Nibe1155 extends { [ id in Nibe1155ModbusAttributes ]: Nibe1155Value } = {
@@ -22,7 +23,6 @@ import { Value } from './value';
 // }
 
 export interface INibe1155Values {
-    outdoorTemp:         string;
     supplyS1Temp:        string;
     supplyReturnTemp:    string;
     brineInTemp:         string;
@@ -33,6 +33,7 @@ export interface INibe1155Values {
     suctionTemp:         string;
     supplyTemp:          string;
     degreeMinutes:       string;
+    calcSupplyTemp:      string;
     electricHeaterPower: string;
     compressorFrequency: string;
     compressorInPower:   string;
@@ -44,40 +45,52 @@ export interface INibe1155Values {
 }
 
 export interface IExtendedNibe1155Values extends INibe1155Values {
-    roomTemp:              string;
-    outdoorTempAverage:    string;
-    currentL1:             string;
-    currentL2:             string;
-    currentL3:             string;
-    heatCurve:             string;
-    heatOffset:            string;
-    heatTempMin:           string;
-    heatTempMax:           string;
-    ownHeatCurveP1:        string;
-    ownHeatCurveP2:        string;
-    ownHeatCurveP3:        string;
-    ownHeatCurveP4:        string;
-    ownHeatCurveP5:        string;
-    ownHeatCurveP6:        string;
-    ownHeatCurveP7:        string;
-    operationalMode:       string;
-    supplyPumpMode:        string;
-    brinePumpMode:         string;
-    dmStartHeating:        string;
-    addHeatingStep:        string;
-    addHeatingMaxPower:    string;
-    addHeatingFuse:        string;
-    allowAdditiveHeating:  string;
-    allowHeating:          string;
-    stopTempHeating:       string;
-    stopTempAddHeating:    string;
-    dmDiffStartAddHeating: string;
-    cutOffFrequActivated2: string;
-    cutOffFrequActivated1: string;
-    cutOffFrequStart2:     string;
-    cutOffFrequStart1:     string;
-    cutOffFrequStop2:      string;
-    cutOffFrequStop1:      string;
+    outdoorTemp:            string;
+    roomTemp:               string;
+    outdoorTempAverage:     string;
+    currentL1:              string;
+    currentL2:              string;
+    currentL3:              string;
+    energyCompAndElHeater:  string;
+    energyCompressor:       string;
+    compFrequTarget:        string;
+    compPower10Min:         string;
+    compNumberOfStarts:     string;
+    compTotalOperationTime: string;
+    alarm:                  string;
+    alarmReset:             string;
+    heatCurve:              string;
+    heatOffset:             string;
+    heatTempMin:            string;
+    heatTempMax:            string;
+    ownHeatCurveP1:         string;
+    ownHeatCurveP2:         string;
+    ownHeatCurveP3:         string;
+    ownHeatCurveP4:         string;
+    ownHeatCurveP5:         string;
+    ownHeatCurveP6:         string;
+    ownHeatCurveP7:         string;
+    regMaxSupplyDiff:       string;
+    regMinCompFrequ:        string;
+    regMaxCompFrequ:        string;
+    operationalMode:        string;
+    supplyPumpMode:         string;
+    brinePumpMode:          string;
+    dmStartHeating:         string;
+    addHeatingStep:         string;
+    addHeatingMaxPower:     string;
+    addHeatingFuse:         string;
+    allowAdditiveHeating:   string;
+    allowHeating:           string;
+    stopTempHeating:        string;
+    stopTempAddHeating:     string;
+    dmDiffStartAddHeating:  string;
+    cutOffFrequActivated2:  string;
+    cutOffFrequActivated1:  string;
+    cutOffFrequStart2:      string;
+    cutOffFrequStart1:      string;
+    cutOffFrequStop2:       string;
+    cutOffFrequStop1:       string;
 }
 
 
@@ -121,7 +134,6 @@ export class Nibe1155 {
     private _debugEventInfoIds: number [] = [];
 
     // LOG.SET registers
-    private _outdoorTemp:         Nibe1155Value;
     private _supplyS1Temp:        Nibe1155Value;
     private _supplyReturnTemp:    Nibe1155Value;
     private _brineInTemp:         Nibe1155Value;
@@ -132,55 +144,67 @@ export class Nibe1155 {
     private _suctionTemp:         Nibe1155Value;
     private _supplyTemp:          Nibe1155Value;
     private _degreeMinutes:       Nibe1155Value;
+    private _calcSupplyTemp:      Nibe1155Value;
     private _electricHeaterPower: Nibe1155Value;
     private _compressorFrequency: Nibe1155Value;
     private _compressorInPower:   Nibe1155Value;
-    private _compressorState:     Nibe1155Value;
+    private _compressorState:     Nibe1155CompressorStateValue;
     private _supplyPumpState:     Nibe1155PumpStateValue;
     private _brinePumpState:      Nibe1155PumpStateValue;
     private _supplyPumpSpeed:     Nibe1155Value;
     private _brinePumpSpeed:      Nibe1155Value;
 
     // normal Registers
-    private _roomTemp:              Nibe1155Value;
-    private _outdoorTempAverage:    Nibe1155Value;
-    private _currentL1:             Nibe1155Value;
-    private _currentL2:             Nibe1155Value;
-    private _currentL3:             Nibe1155Value;
-    private _heatCurve:             Nibe1155Value;
-    private _heatOffset:            Nibe1155Value;
-    private _heatTempMin:           Nibe1155Value;
-    private _heatTempMax:           Nibe1155Value;
-    private _ownHeatCurveP1:        Nibe1155Value;
-    private _ownHeatCurveP2:        Nibe1155Value;
-    private _ownHeatCurveP3:        Nibe1155Value;
-    private _ownHeatCurveP4:        Nibe1155Value;
-    private _ownHeatCurveP5:        Nibe1155Value;
-    private _ownHeatCurveP6:        Nibe1155Value;
-    private _ownHeatCurveP7:        Nibe1155Value;
-    private _operationalMode:       Nibe1155OperationModeValue;
-    private _supplyPumpMode:        Nibe1155PumpModeValue;
-    private _brinePumpMode:         Nibe1155PumpModeValue;
-    private _dmStartHeating:        Nibe1155Value;
-    private _addHeatingStep:        Nibe1155Value;
-    private _addHeatingMaxPower:    Nibe1155Value;
-    private _addHeatingFuse:        Nibe1155Value;
-    private _allowAdditiveHeating:  Nibe1155Value;
-    private _allowHeating:          Nibe1155Value;
-    private _stopTempHeating:       Nibe1155Value;
-    private _stopTempAddHeating:    Nibe1155Value;
-    private _dmDiffStartAddHeating: Nibe1155Value;
-    private _cutOffFrequActivated2: Nibe1155Value;
-    private _cutOffFrequActivated1: Nibe1155Value;
-    private _cutOffFrequStart2:     Nibe1155Value;
-    private _cutOffFrequStart1:     Nibe1155Value;
-    private _cutOffFrequStop2:      Nibe1155Value;
-    private _cutOffFrequStop1:      Nibe1155Value;
+    private _outdoorTemp:            Nibe1155Value;
+    private _roomTemp:               Nibe1155Value;
+    private _outdoorTempAverage:     Nibe1155Value;
+    private _currentL1:              Nibe1155Value;
+    private _currentL2:              Nibe1155Value;
+    private _currentL3:              Nibe1155Value;
+    private _energyCompAndElHeater:  Nibe1155Value;
+    private _energyCompressor:       Nibe1155Value;
+    private _compFrequTarget:        Nibe1155Value;
+    private _compPower10Min:         Nibe1155Value;
+    private _compNumberOfStarts:     Nibe1155Value;
+    private _compTotalOperationTime: Nibe1155Value;
+    private _alarm:                  Nibe1155AlarmValue;
+    private _alarmReset:             Nibe1155Value;
+    private _heatCurve:              Nibe1155Value;
+    private _heatOffset:             Nibe1155Value;
+    private _heatTempMin:            Nibe1155Value;
+    private _heatTempMax:            Nibe1155Value;
+    private _ownHeatCurveP1:         Nibe1155Value;
+    private _ownHeatCurveP2:         Nibe1155Value;
+    private _ownHeatCurveP3:         Nibe1155Value;
+    private _ownHeatCurveP4:         Nibe1155Value;
+    private _ownHeatCurveP5:         Nibe1155Value;
+    private _ownHeatCurveP6:         Nibe1155Value;
+    private _ownHeatCurveP7:         Nibe1155Value;
+    private _regMaxSupplyDiff:       Nibe1155Value;
+    private _regMinCompFrequ:        Nibe1155Value;
+    private _regMaxCompFrequ:        Nibe1155Value;
+    private _operationalMode:        Nibe1155OperationModeValue;
+    private _supplyPumpMode:         Nibe1155PumpModeValue;
+    private _brinePumpMode:          Nibe1155PumpModeValue;
+    private _dmStartHeating:         Nibe1155Value;
+    private _addHeatingStep:         Nibe1155Value;
+    private _addHeatingMaxPower:     Nibe1155Value;
+    private _addHeatingFuse:         Nibe1155Value;
+    private _allowAdditiveHeating:   Nibe1155Value;
+    private _allowHeating:           Nibe1155Value;
+    private _stopTempHeating:        Nibe1155Value;
+    private _stopTempAddHeating:     Nibe1155Value;
+    private _dmDiffStartAddHeating:  Nibe1155Value;
+    private _cutOffFrequActivated2:  Nibe1155Value;
+    private _cutOffFrequActivated1:  Nibe1155Value;
+    private _cutOffFrequStart2:      Nibe1155Value;
+    private _cutOffFrequStart1:      Nibe1155Value;
+    private _cutOffFrequStop2:       Nibe1155Value;
+    private _cutOffFrequStop1:       Nibe1155Value;
 
     private constructor (serial: ModbusSerial) {
         this._serial = serial;
 
-        this._outdoorTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.outdoorTemp);
         this._supplyS1Temp        = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyS1Temp);
         this._supplyReturnTemp    = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyReturnTemp);
         this._brineInTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.brineInTemp);
@@ -191,25 +215,35 @@ export class Nibe1155 {
         this._suctionTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.suctionTemp);
         this._supplyTemp          = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyTemp);
         this._degreeMinutes       = new Nibe1155Value(Nibe1155Modbus.regDefByLable.degreeMinutes);
+        this._calcSupplyTemp      = new Nibe1155Value(Nibe1155Modbus.regDefByLable.calcSupplyTemp);
         this._electricHeaterPower = new Nibe1155Value(Nibe1155Modbus.regDefByLable.electricHeaterPower);
         this._compressorFrequency = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compressorFrequency);
         this._compressorInPower   = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compressorInPower);
-        this._compressorState     = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compressorState);
+        this._compressorState     = new Nibe1155CompressorStateValue(Nibe1155Modbus.regDefByLable.compressorState);
         this._supplyPumpState     = new Nibe1155PumpStateValue(Nibe1155Modbus.regDefByLable.supplyPumpState);
         this._brinePumpState      = new Nibe1155PumpStateValue(Nibe1155Modbus.regDefByLable.brinePumpState);
         this._supplyPumpSpeed     = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyPumpSpeed);
         this._brinePumpSpeed      = new Nibe1155Value(Nibe1155Modbus.regDefByLable.brinePumpSpeed);
 
         this._logSetIds = [
-            40004, 40008, 40012, 40015, 40016, 40017, 40018, 40019, 40022, 40071,
-            43005, 43084, 43136, 43141, 43427, 43431, 43433, 43437, 43439
+            40008, 40012, 40015, 40016, 40017, 40018, 40019, 40022, 40071,
+            43005, 43009, 43084, 43136, 43141, 43427, 43431, 43433, 43437, 43439
         ];
 
+        this._outdoorTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.outdoorTemp);
         this._roomTemp = new Nibe1155Value(Nibe1155Modbus.regDefByLable.roomTemp);
         this._outdoorTempAverage = new Nibe1155Value(Nibe1155Modbus.regDefByLable.outdoorTempAverage);
         this._currentL1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.currentL1);
         this._currentL2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.currentL2);
         this._currentL3 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.currentL3);
+        this._energyCompAndElHeater = new Nibe1155Value(Nibe1155Modbus.regDefByLable.energyCompAndElHeater);
+        this._energyCompressor = new Nibe1155Value(Nibe1155Modbus.regDefByLable.energyCompressor);
+        this._compFrequTarget = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compFrequTarget);
+        this._compPower10Min = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compPower10Min);
+        this._compNumberOfStarts = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compNumberOfStarts);
+        this._compTotalOperationTime = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compTotalOperationTime);
+        this._alarm = new Nibe1155AlarmValue(Nibe1155Modbus.regDefByLable.alarm);
+        this._alarmReset = new Nibe1155Value(Nibe1155Modbus.regDefByLable.alarmReset);
         this._heatCurve = new Nibe1155Value(Nibe1155Modbus.regDefByLable.heatCurveS1);
         this._heatOffset = new Nibe1155Value(Nibe1155Modbus.regDefByLable.heatOffsetS1);
         this._heatTempMin = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyMinS1);
@@ -221,6 +255,9 @@ export class Nibe1155 {
         this._ownHeatCurveP5 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP5);
         this._ownHeatCurveP6 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP6);
         this._ownHeatCurveP7 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP7);
+        this._regMaxSupplyDiff = new Nibe1155Value(Nibe1155Modbus.regDefByLable.regMaxSupplyDiff);
+        this._regMinCompFrequ = new Nibe1155Value(Nibe1155Modbus.regDefByLable.regMinCompFrequ);
+        this._regMaxCompFrequ = new Nibe1155Value(Nibe1155Modbus.regDefByLable.regMaxCompFrequ);
         this._operationalMode = new Nibe1155OperationModeValue(Nibe1155Modbus.regDefByLable.operationalMode);
         this._supplyPumpMode = new Nibe1155PumpModeValue(Nibe1155Modbus.regDefByLable.supplyPumpMode);
         this._brinePumpMode = new Nibe1155PumpModeValue(Nibe1155Modbus.regDefByLable.brinePumpMode);
@@ -252,9 +289,9 @@ export class Nibe1155 {
             }
         }
 
-        this._debugEventInfoIds.push(this._supplyPumpSpeed.id);
-        this._debugEventInfoIds.push(this._brinePumpSpeed.id);
-        this._debugEventInfoIds.push(this._compressorFrequency.id);
+        // this._debugEventInfoIds.push(this._supplyPumpSpeed.id);
+        // this._debugEventInfoIds.push(this._brinePumpSpeed.id);
+        // this._debugEventInfoIds.push(this._compressorFrequency.id);
 
         // this.on('supplyPumpSpeed', (value, oldValue, v) => {
         //     debug.warn('----> change of %s: %s -> %s', v.label, oldValue, value);
@@ -287,6 +324,14 @@ export class Nibe1155 {
         this._setPointDegreeMinutes = value;
     }
 
+    public get logsetIds (): number [] {
+        return this._logSetIds;
+    }
+
+    public get values (): { [id: number]: Nibe1155Value } {
+        return this._idMap;
+    }
+
     public async getRegisterValue (id: number, notOlderThanMillis?: number): Promise<number> {
         try {
             const x = this._idMap[id];
@@ -314,6 +359,10 @@ export class Nibe1155 {
         return await this.readRegister(id);
     }
 
+    public async readOutdoorTemp (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._outdoorTemp.id, notOlderThanMillis);
+    }
+
     public async readRoomTemp (notOlderThanMillis?: number): Promise<number> {
         return this.getRegisterValue(this._roomTemp.id, notOlderThanMillis);
     }
@@ -332,6 +381,35 @@ export class Nibe1155 {
 
     public async readCurrentL3 (notOlderThanMillis?: number): Promise<number> {
         return this.getRegisterValue(this._currentL3.id, notOlderThanMillis);
+    }
+
+    public async readEnergyCompAndElHeater (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._energyCompAndElHeater.id, notOlderThanMillis);
+    }
+
+    public async readEnergyCompressor (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._energyCompressor.id, notOlderThanMillis);
+    }
+
+
+    public async readComppressorFrequencyTarget (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._compFrequTarget.id, notOlderThanMillis);
+    }
+
+    public async readComppressorPower10Min (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._compPower10Min.id, notOlderThanMillis);
+    }
+
+    public async readCompressorNumberOfStarts (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._compNumberOfStarts.id, notOlderThanMillis);
+    }
+
+    public async readCompressorTotalOperationTime (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._compTotalOperationTime.id, notOlderThanMillis);
+    }
+
+    public async readAlarm (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._alarm.id, notOlderThanMillis);
     }
 
     public async readHeatCurve (notOlderThanMillis?: number): Promise<number> {
@@ -361,6 +439,18 @@ export class Nibe1155 {
             case  30: return this.getRegisterValue(this._ownHeatCurveP7.id, notOlderThanMillis);
             default: throw new Error('invalid temp ' + temp);
         }
+    }
+
+    public async readRegMaxSupplyDiff (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._regMaxSupplyDiff.id, notOlderThanMillis);
+    }
+
+    public async readRegMinCompFrequ (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._regMinCompFrequ.id, notOlderThanMillis);
+    }
+
+    public async readRegMaxCompFrequ (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._regMaxCompFrequ.id, notOlderThanMillis);
     }
 
     public async read_operationalMode (notOlderThanMillis?: number): Promise<'auto' | 'manual' | 'add heat only' | '?'> {
@@ -550,9 +640,14 @@ export class Nibe1155 {
     }
 
     public async writeDegreeMinutes (value: number): Promise<ModbusRequest> {
+        value = value * 10;
         value = Math.max(-30000, value);
         value = Math.min( 30000, value);
-        return this.writeRegister(this._degreeMinutes, value);
+        return this.writeRegister(this._degreeMinutes, Math.round(value));
+    }
+
+    public async writeAlarmReset (): Promise<ModbusRequest> {
+        return this.writeRegister(this._alarmReset, 1);
     }
 
     public async writeHeatCurve (value: number): Promise<ModbusRequest> {
@@ -594,6 +689,24 @@ export class Nibe1155 {
             case  30: return this.writeRegister(this._ownHeatCurveP7, Math.round(value));
             default: throw new Error('invalid temp ' + temp);
         }
+    }
+
+    public async writeRegMaxSupplyDiff (value: number): Promise<ModbusRequest> {
+        value = value * 10;
+        value = Math.min(0, value);
+        return this.writeRegister(this._regMaxSupplyDiff, Math.round(value));
+    }
+
+    public async writeRegMinCompFrequ (value: number): Promise<ModbusRequest> {
+        value = Math.min(17, value);
+        value = Math.max(90, value);
+        return this.writeRegister(this._regMinCompFrequ, Math.round(value));
+    }
+
+    public async writeRegMaxCompFrequ (value: number): Promise<ModbusRequest> {
+        value = Math.min(20, value);
+        value = Math.max(120, value);
+        return this.writeRegister(this._regMaxCompFrequ, Math.round(value));
     }
 
     public async writeOperationMode (mode: 'auto' | 'manual' | 'add heat only'): Promise<ModbusRequest> {
@@ -758,10 +871,6 @@ export class Nibe1155 {
 
     // ************************************************************
 
-    public get outdoorTemp (): Nibe1155Value {
-        return this._outdoorTemp;
-    }
-
     public get supplyS1Temp (): Nibe1155Value {
         return this._supplyS1Temp;
     }
@@ -802,6 +911,10 @@ export class Nibe1155 {
         return this._degreeMinutes;
     }
 
+    public get calcSupplyTemp (): Nibe1155Value {
+        return this._calcSupplyTemp;
+    }
+
     public get electricHeaterPower (): Nibe1155Value {
         return this._electricHeaterPower;
     }
@@ -814,15 +927,15 @@ export class Nibe1155 {
         return this._compressorInPower;
     }
 
-    public get compressorState (): Nibe1155Value {
+    public get compressorState (): Nibe1155CompressorStateValue {
         return this._compressorState;
     }
 
-    public get supplyPumpState (): Nibe1155Value {
+    public get supplyPumpState (): Nibe1155PumpStateValue {
         return this._supplyPumpState;
     }
 
-    public get brinePumpState (): Nibe1155Value {
+    public get brinePumpState (): Nibe1155PumpStateValue {
         return this._brinePumpState;
     }
 
@@ -860,7 +973,6 @@ export class Nibe1155 {
     public toNibe1155ValuesObject (): INibe1155Values {
         const v = this.toValuesObject();
         const rv: INibe1155Values = {
-            outdoorTemp:           this._outdoorTemp.valueAsString(true),
             supplyS1Temp:          this._supplyS1Temp.valueAsString(true),
             supplyReturnTemp:      this._supplyReturnTemp.valueAsString(true),
             brineInTemp:           this._brineInTemp.valueAsString(true),
@@ -871,6 +983,7 @@ export class Nibe1155 {
             suctionTemp:           this._suctionTemp.valueAsString(true),
             supplyTemp:            this._supplyTemp.valueAsString(true),
             degreeMinutes:         this._degreeMinutes.valueAsString(true),
+            calcSupplyTemp:        this._calcSupplyTemp.valueAsString(true),
             electricHeaterPower:   this._electricHeaterPower.valueAsString(true),
             compressorFrequency:   this._compressorFrequency.valueAsString(true),
             compressorInPower:     this._compressorInPower.valueAsString(true),
@@ -886,59 +999,71 @@ export class Nibe1155 {
     public toExtendedNibe1155ValuesObject (): IExtendedNibe1155Values {
         const v = this.toValuesObject();
         const rv: IExtendedNibe1155Values = {
-            outdoorTemp:           this._outdoorTemp.valueAsString(true),
-            supplyS1Temp:          this._supplyS1Temp.valueAsString(true),
-            supplyReturnTemp:      this._supplyReturnTemp.valueAsString(true),
-            brineInTemp:           this._brineInTemp.valueAsString(true),
-            brineOutTemp:          this._brineOutTemp.valueAsString(true),
-            condensorOutTemp:      this._condensorOutTemp.valueAsString(true),
-            hotGasTemp:            this._hotGasTemp.valueAsString(true),
-            liquidLineTemp:        this._liquidLineTemp.valueAsString(true),
-            suctionTemp:           this._suctionTemp.valueAsString(true),
-            supplyTemp:            this._supplyTemp.valueAsString(true),
-            degreeMinutes:         this._degreeMinutes.valueAsString(true),
-            electricHeaterPower:   this._electricHeaterPower.valueAsString(true),
-            compressorFrequency:   this._compressorFrequency.valueAsString(true),
-            compressorInPower:     this._compressorInPower.valueAsString(true),
-            compressorState:       this._compressorState.valueAsString(true),
-            supplyPumpState:       this._supplyPumpState.valueAsString(true),
-            brinePumpState:        this._brinePumpState.valueAsString(true),
-            supplyPumpSpeed:       this._supplyPumpSpeed.valueAsString(true),
-            brinePumpSpeed:        this._brinePumpSpeed.valueAsString(true),
-            roomTemp:              this._roomTemp.valueAsString(true),
-            outdoorTempAverage:    this._outdoorTempAverage.valueAsString(true),
-            currentL1:             this._currentL1.valueAsString(true),
-            currentL2:             this._currentL2.valueAsString(true),
-            currentL3:             this._currentL3.valueAsString(true),
-            heatCurve:             this._heatCurve.valueAsString(true),
-            heatOffset:            this._heatOffset.valueAsString(true),
-            heatTempMin:           this._heatTempMin.valueAsString(true),
-            heatTempMax:           this._heatTempMax.valueAsString(true),
-            ownHeatCurveP1:        this._ownHeatCurveP1.valueAsString(true),
-            ownHeatCurveP2:        this._ownHeatCurveP2.valueAsString(true),
-            ownHeatCurveP3:        this._ownHeatCurveP3.valueAsString(true),
-            ownHeatCurveP4:        this._ownHeatCurveP4.valueAsString(true),
-            ownHeatCurveP5:        this._ownHeatCurveP5.valueAsString(true),
-            ownHeatCurveP6:        this._ownHeatCurveP6.valueAsString(true),
-            ownHeatCurveP7:        this._ownHeatCurveP7.valueAsString(true),
-            operationalMode:       this._operationalMode.valueAsString(true),
-            supplyPumpMode:        this._supplyPumpMode.valueAsString(true),
-            brinePumpMode:         this._brinePumpMode.valueAsString(true),
-            dmStartHeating:        this._dmStartHeating.valueAsString(true),
-            addHeatingStep:        this._addHeatingStep.valueAsString(true),
-            addHeatingMaxPower:    this._addHeatingMaxPower.valueAsString(true),
-            addHeatingFuse:        this._addHeatingFuse.valueAsString(true),
-            allowAdditiveHeating:  this._allowAdditiveHeating.valueAsString(true),
-            allowHeating:          this._allowHeating.valueAsString(true),
-            stopTempHeating:       this._stopTempHeating.valueAsString(true),
-            stopTempAddHeating:    this._stopTempAddHeating.valueAsString(true),
-            dmDiffStartAddHeating: this._dmDiffStartAddHeating.valueAsString(true),
-            cutOffFrequActivated2: this._cutOffFrequActivated2.valueAsString(true),
-            cutOffFrequActivated1: this._cutOffFrequActivated1.valueAsString(true),
-            cutOffFrequStart2:     this._cutOffFrequStart2.valueAsString(true),
-            cutOffFrequStart1:     this._cutOffFrequStart1.valueAsString(true),
-            cutOffFrequStop2:      this._cutOffFrequStop2.valueAsString(true),
-            cutOffFrequStop1:      this._cutOffFrequStop1.valueAsString(true)
+            supplyS1Temp:           this._supplyS1Temp.valueAsString(true),
+            supplyReturnTemp:       this._supplyReturnTemp.valueAsString(true),
+            brineInTemp:            this._brineInTemp.valueAsString(true),
+            brineOutTemp:           this._brineOutTemp.valueAsString(true),
+            condensorOutTemp:       this._condensorOutTemp.valueAsString(true),
+            hotGasTemp:             this._hotGasTemp.valueAsString(true),
+            liquidLineTemp:         this._liquidLineTemp.valueAsString(true),
+            suctionTemp:            this._suctionTemp.valueAsString(true),
+            supplyTemp:             this._supplyTemp.valueAsString(true),
+            degreeMinutes:          this._degreeMinutes.valueAsString(true),
+            calcSupplyTemp:         this._calcSupplyTemp.valueAsString(true),
+            electricHeaterPower:    this._electricHeaterPower.valueAsString(true),
+            compressorFrequency:    this._compressorFrequency.valueAsString(true),
+            compressorInPower:      this._compressorInPower.valueAsString(true),
+            compressorState:        this._compressorState.valueAsString(true),
+            supplyPumpState:        this._supplyPumpState.valueAsString(true),
+            brinePumpState:         this._brinePumpState.valueAsString(true),
+            supplyPumpSpeed:        this._supplyPumpSpeed.valueAsString(true),
+            brinePumpSpeed:         this._brinePumpSpeed.valueAsString(true),
+            outdoorTemp:            this._outdoorTemp.valueAsString(true),
+            roomTemp:               this._roomTemp.valueAsString(true),
+            outdoorTempAverage:     this._outdoorTempAverage.valueAsString(true),
+            currentL1:              this._currentL1.valueAsString(true),
+            currentL2:              this._currentL2.valueAsString(true),
+            currentL3:              this._currentL3.valueAsString(true),
+            energyCompAndElHeater:  this._energyCompAndElHeater.valueAsString(true),
+            energyCompressor:       this._energyCompressor.valueAsString(true),
+            compFrequTarget:        this._compFrequTarget.valueAsString(true),
+            compPower10Min:         this._compPower10Min.valueAsString(true),
+            compNumberOfStarts:     this._compNumberOfStarts.valueAsString(true),
+            compTotalOperationTime: this._compTotalOperationTime.valueAsString(true),
+            alarm:                  this._alarm.valueAsString(true),
+            alarmReset:             this._alarmReset.valueAsString(true),
+            heatCurve:              this._heatCurve.valueAsString(true),
+            heatOffset:             this._heatOffset.valueAsString(true),
+            heatTempMin:            this._heatTempMin.valueAsString(true),
+            heatTempMax:            this._heatTempMax.valueAsString(true),
+            ownHeatCurveP1:         this._ownHeatCurveP1.valueAsString(true),
+            ownHeatCurveP2:         this._ownHeatCurveP2.valueAsString(true),
+            ownHeatCurveP3:         this._ownHeatCurveP3.valueAsString(true),
+            ownHeatCurveP4:         this._ownHeatCurveP4.valueAsString(true),
+            ownHeatCurveP5:         this._ownHeatCurveP5.valueAsString(true),
+            ownHeatCurveP6:         this._ownHeatCurveP6.valueAsString(true),
+            ownHeatCurveP7:         this._ownHeatCurveP7.valueAsString(true),
+            regMaxSupplyDiff:       this._regMaxSupplyDiff.valueAsString(true),
+            regMinCompFrequ:        this._regMinCompFrequ.valueAsString(true),
+            regMaxCompFrequ:        this._regMaxCompFrequ.valueAsString(true),
+            operationalMode:        this._operationalMode.valueAsString(true),
+            supplyPumpMode:         this._supplyPumpMode.valueAsString(true),
+            brinePumpMode:          this._brinePumpMode.valueAsString(true),
+            dmStartHeating:         this._dmStartHeating.valueAsString(true),
+            addHeatingStep:         this._addHeatingStep.valueAsString(true),
+            addHeatingMaxPower:     this._addHeatingMaxPower.valueAsString(true),
+            addHeatingFuse:         this._addHeatingFuse.valueAsString(true),
+            allowAdditiveHeating:   this._allowAdditiveHeating.valueAsString(true),
+            allowHeating:           this._allowHeating.valueAsString(true),
+            stopTempHeating:        this._stopTempHeating.valueAsString(true),
+            stopTempAddHeating:     this._stopTempAddHeating.valueAsString(true),
+            dmDiffStartAddHeating:  this._dmDiffStartAddHeating.valueAsString(true),
+            cutOffFrequActivated2:  this._cutOffFrequActivated2.valueAsString(true),
+            cutOffFrequActivated1:  this._cutOffFrequActivated1.valueAsString(true),
+            cutOffFrequStart2:      this._cutOffFrequStart2.valueAsString(true),
+            cutOffFrequStart1:      this._cutOffFrequStart1.valueAsString(true),
+            cutOffFrequStop2:       this._cutOffFrequStop2.valueAsString(true),
+            cutOffFrequStop1:       this._cutOffFrequStop1.valueAsString(true)
         };
         return rv;
     }
@@ -955,7 +1080,18 @@ export class Nibe1155 {
 
     private async writeRegisterNow (id: number, value: number, size?: 'u8' | 's8' | 'u16' | 's16' | 'u32' | 's32'): Promise<ModbusRequest> {
         try {
-            const quantity = size && (size === 'u32' || size === 's32') ? 2 : 1;
+            let quantity = 1;
+            switch (size) {
+                case 'u8': case 'u16': break;
+                case 's8':  value = value < 0 ? value + 0x100 : value; break;
+                case 's16': value = value < 0 ? value + 0x10000 : value; break;
+                case 'u32': quantity = 2; break;
+                case 's32':
+                    quantity = 2;
+                    value = value < 0 ? value + 0x100000000 : value; break;
+                    break;
+                default: throw new Error('invalid size ' + size);
+            }
             const requ =  ModbusRequestFactory.createWriteMultipleHoldRegisters(1, id + 1, quantity, [ value ], false);
             await this._serial.send(requ);
             return requ;
@@ -1031,12 +1167,14 @@ export class Nibe1155 {
                         debug.finest('Polling: requested read of register %s %s ...', id, label);
                         const rv = await this.readRegisterNow(id, size);
                         const value = x.reg instanceof Nibe1155Value ? x.reg.value : rv.response.u16At(3);
+                        Statistics.Instance.handleSingleValue(label, value, rv.responseAt);
                         debug.finer('Polling: requested read of register %s %s done -> %s', id, label, value);
                         x.res(rv);
                     } else {
                         debug.finest('Polling: requested write of register %s %s = %s ...', id, label, x.value);
                         const rv = await this.writeRegisterNow(id, x.value, size);
                         debug.finer('Polling: requested write of register %s %s = %s done', id, label, x.value);
+                        // Statistics.Instance.handleSingleValue(label, x.value);
                         x.res(rv);
                     }
                 } catch (err) {
@@ -1047,8 +1185,9 @@ export class Nibe1155 {
                 const v = this._nonLogSetRegs[this._readNonLogRegsIndex];
                 this._readNonLogRegsIndex = (this._readNonLogRegsIndex + 1) % this._nonLogSetRegs.length;
                 debug.finest('Polling: periodic read register %s %s ...', v.id, v.label);
-                await this.readRegisterNow(v.id);
+                const requ = await this.readRegisterNow(v.id, v.size);
                 debug.finer('Polling: periodic read register %s %s done -> %s', v.id, v.label, v.value);
+                Statistics.Instance.handleSingleValue(v.label, v.value, requ.responseAt);
             }
 
         } catch (err) {
@@ -1083,8 +1222,9 @@ export class Nibe1155 {
                 }
             }
             this.handleEventEmitter();
+            const x = this.toNibe1155ValuesObject();
             this.writeLog(this.toNibe1155ValuesObject());
-            Statistics.Instance.handleMonitorRecord(MonitorRecord.createFromRawData(this));
+            Statistics.Instance.handleMonitorRecord(Nibe1155MonitorRecord.createInstance(this));
             // debug.info('%O', this.toNibe1155ValuesObject());
         } catch (err) {
             debug.warn('polling LOG.SET ids fails\n%e', err);

@@ -6,7 +6,7 @@ export interface IValue {
     help?: string;
     unit?: string;
     value?: number;
-    valueAt?: Date | number;
+    valueAt?: Date;
 }
 
 export abstract class Value implements IValue {
@@ -67,7 +67,7 @@ export abstract class Value implements IValue {
         return this._valueAt;
     }
 
-    public toObject (preserveDate?: boolean) {
+    public toObject () {
         const rv: IValue = {
             label: this._label,
             format: this._format
@@ -76,7 +76,7 @@ export abstract class Value implements IValue {
         if (this._unit)             { rv.unit = this._unit; }
         if (this._help)             { rv.help = this._help; }
         if (this._value !== null)   { rv.value = this._value; }
-        if (this._valueAt !== null) { rv.valueAt = preserveDate ? this._valueAt : this._valueAt.getTime(); }
+        if (this._valueAt !== null) { rv.valueAt = this._valueAt; }
         return rv;
     }
 

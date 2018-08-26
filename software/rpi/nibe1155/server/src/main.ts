@@ -77,6 +77,7 @@ doStartup();
 
 async function doHeatPumpControlling () {
     const hp = HeatPump.Instance;
+    await hp.start('on');
     // Nibe1155.Instance.setPointDegreeMinutes = -5;
     // await Nibe1155.Instance.writeCutOffFreq2Stop(120);
     // await Nibe1155.Instance.readCutOffFrequStop2(0);
@@ -86,10 +87,15 @@ async function doHeatPumpControlling () {
     // await Nibe1155.Instance.readStopTempHeating(0);
     // await Nibe1155.Instance.writeHeatCurve(0); await Nibe1155.Instance.readHeatCurve(0);
     // await Nibe1155.Instance.writeAllowHeating(true); await Nibe1155.Instance.readIsHeatingAllowed(0);
-    await Nibe1155.Instance.writeHeatTempMax(41.5); await Nibe1155.Instance.readHeatTempMax(0);
-    await Nibe1155.Instance.writeHeatTempMin(41.5); await Nibe1155.Instance.readHeatTempMin(0);
-    await Nibe1155.Instance.writeStopTempHeating(40); await Nibe1155.Instance.readStopTempHeating(0);
-    Nibe1155.Instance.setPointDegreeMinutes = undefined;
+    // await Nibe1155.Instance.writeDegreeMinutes(100);
+    // await Nibe1155.Instance.writeHeatTempMax(41.5);
+    // await Nibe1155.Instance.readHeatTempMax(0);
+    // await Nibe1155.Instance.writeHeatTempMax(20); await Nibe1155.Instance.readHeatTempMax(0);
+    // await Nibe1155.Instance.writeHeatTempMin(20); await Nibe1155.Instance.readHeatTempMin(0);
+    // await Nibe1155.Instance.writeStopTempHeating(40); await Nibe1155.Instance.readStopTempHeating(0);
+    // await Nibe1155.Instance.writeBrinePumpMode('auto'); await Nibe1155.Instance.readBrinePumpMode(0);
+    // await Nibe1155.Instance.writeSupplyPumpMode('economy'); await Nibe1155.Instance.readSupplyPumpMode(0);
+    // Nibe1155.Instance.setPointDegreeMinutes = undefined;
 
     // await hp.start('off');
     // await hp.start('pumpsOn');

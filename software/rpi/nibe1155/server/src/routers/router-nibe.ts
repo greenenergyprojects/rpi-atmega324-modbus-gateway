@@ -87,8 +87,12 @@ export class RouterNibe {
     private async getStatus (req: express.Request, res: express.Response, next: express.NextFunction) {
         try {
             const rv: any = {};
-            rv.heatpump = HeatPump.Instance.toObject();
-            rv.nibe1155 = Nibe1155.Instance.toExtendedNibe1155ValuesObject();
+            try {
+                rv.heatpump = HeatPump.Instance.toObject();
+            } catch (err) {}
+            try {
+                rv.nibe1155 = Nibe1155.Instance.toExtendedNibe1155ValuesObject();
+            } catch (err) {}
             debug.fine('query %o -> response: %o', req.query, rv);
             res.json(rv);
         } catch (err) {

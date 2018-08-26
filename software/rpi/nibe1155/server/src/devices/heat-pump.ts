@@ -1,15 +1,21 @@
 
 import * as debugsx from 'debug-sx';
 const debug: debugsx.IFullLogger = debugsx.createFullLogger('devices:HeatPump');
-const debugState: debugsx.IDefaultLogger = debugsx.createDefaultLogger('HeatPump.State');
+const debugState: debugsx.IFullLogger = debugsx.createFullLogger('HeatPump.State');
 
 import { Nibe1155 } from './nibe1155';
-import { key } from 'nconf';
-import { Action } from './actions/action';
-import { Actions } from './actions/actions';
 
-export type Mode = 'error' | 'test' | 'init' | 'off' | 'stop' |
-                   'onlyBrinePumpOn' | 'onlyHeatPumpOn' | 'pumpsOn' | 'min' | 'maxHeatPump' | 'max' | 'power' | 'temp';
+export type State = 'init' | 'off' | 'error' | 'test' | 'on';
+
+export interface IController {
+    createdAt: Date;
+    state: string;
+    running: boolean;
+    desiredState?: string;
+    inProgressSince?: Date;
+    setPointTemp?: number;
+    fSetpoint?: number;
+}
 
 export class HeatPump {
 
@@ -31,407 +37,277 @@ export class HeatPump {
     // ******************************************************************
 
     private _nibe1155: Nibe1155;
+    private _state: State;
+    private _desiredState: State;
+    private _recentState: State;
+    private _inProgressSince: Date;
     private _timer: NodeJS.Timer;
 
-    private _desiredMode: Mode;
-    private _currentMode: Mode;
-    private _pendingActions: { targetMode: Mode, actions: Action [], currentIndex: number };
-    private _actionHistory: Action [] = [];
+    private _setPointTemp: number;
+    private _fDiffChangeAt: number;
+    private _fSetpoint: number;
 
     private constructor (nibe1155: Nibe1155) {
         this._nibe1155 = nibe1155;
-        this._currentMode = 'init';
+        this._state = 'init';
     }
 
 
-    public async start (mode: Mode) {
-        if (mode === 'stop') { throw new Error('invalid mode argument'); }
-        if (this._currentMode !== 'init' && this._currentMode !== 'stop') {
-            throw new Error('Heat pump already started');
-        }
-        this._desiredMode = mode;
-        debugState.info('heat pump controlling started (desired mode "%s")', mode);
+    public async start (desiredState: State) {
+        if (this._timer) { throw new Error('already started'); }
+        this._desiredState = desiredState;
+        this._timer = setInterval( () => this.handleStateMachine(), 2000);
+        process.nextTick( () => this.handleStateMachine() );
     }
 
     public async stop () {
-        this._desiredMode = 'stop';
-        if (this._currentMode === 'stop') {
-            debugState.warn('stop() command, but heat pump already stopped');
-        } else {
-            debugState.info('heat pump is now shutting down to mode "stop"');
-            process.nextTick( () => this.nextState() );
-        }
+        if (this._timer) { throw new Error('not started'); }
+        clearInterval(this._timer);
+        this._timer = null;
     }
 
-    public get currentMode (): Mode {
-        return this._currentMode;
+    public get state (): State {
+        return this._state;
     }
 
-    public get desiredMode (): Mode {
-        return this._desiredMode;
-    }
-
-    public set desiredMode (value: Mode) {
-        if (value === 'init' || value === 'stop') { throw new Error('invalid argument'); }
-        debugState.fine('set desiredMode %s', value);
-        this._desiredMode = value;
-        process.nextTick( () => this.nextState() );
-    }
-
-    public toObject (): any {
-        return {
-            currentMode: this._currentMode,
-            desiredMode: this._desiredMode,
-            setPointDM: this._nibe1155.setPointDegreeMinutes
+    public toObject (): IController {
+        const rv: any = {
+            createdAt: new Date(),
+            running: this._timer !== undefined,
+            state: this._state,
+            inProgressSince: this._inProgressSince,
+            setPointTemp: this._setPointTemp,
+            fSetpoint: this._fSetpoint
         };
+        if (this._state !== this._desiredState) {
+            rv.desiredState = this._desiredState;
+        }
+        return rv;
+    }
+
+    private async delay (milliSeconds: number) {
+        return new Promise ( (res, rej) => {
+            setTimeout( () => { res(); }, milliSeconds);
+        });
     }
 
     private async init () {
-        this._desiredMode = 'off';
-        process.nextTick( () => this.nextState() );
+
     }
 
-
-    private async executeActions (targetMode: Mode, actions: Action [], timeoutSecs?: number): Promise<void> {
-        if (this._pendingActions) { throw new Error('cannot start actions when older actions pending'); }
-        if (actions.length === 0) {
-            this._pendingActions = null;
-            return Promise.resolve();
-        }
-
-        this._pendingActions = {
-            targetMode: targetMode,
-            actions: actions,
-            currentIndex: -1,
-        };
-
-        return this.handleActions(timeoutSecs);
-    }
-
-
-    private async handleActions (timeoutSecs: number): Promise<void> {
-        let cancel = false;
-        if (timeoutSecs > 0) {
-            this._timer = setTimeout( () => {
-                debug.warn('Timeout: cancel action handling');
-                cancel = true;
-            }, timeoutSecs);
-        }
-        for (let i = 0 ; i < this._pendingActions.actions.length; i++) {
-            if (cancel) { throw new Error('action handling cancelled'); }
-            this._pendingActions.currentIndex = i;
-            await this._pendingActions.actions[i].execute();
+    private async handleStateMachine () {
+        if (this._inProgressSince) { return; }
+        try {
+            this._inProgressSince = new Date();
+            let nextState: State;
+            switch (this._state) {
+                case 'init':  nextState = await this.handleStateInit(); break;
+                case 'off':   nextState = await this.handleStateOff(); break;
+                case 'error': nextState = await this.handleStateError(); break;
+                case 'test':  nextState = await this.handleStateTest(); break;
+                case 'on':    nextState = await this.handleStateOn(); break;
+                default:
+                    debugState.warn('state %s not supported', this._state); break;
+            }
+            if (nextState && nextState !== this._state) {
+                this._recentState = this._state;
+                this._state = nextState;
+            } else {
+                this._recentState = this._state;
+            }
+        } catch (err) {
+            debug.warn (err);
+        } finally {
+            this._inProgressSince = undefined;
         }
     }
 
-    private async nextState () {
-        if (this._pendingActions) {
-            return;
-        }
+    private async handleStateInit (): Promise<State> {
+        debugState.finer('handleStateInit(): recentState = %s', this._recentState);
+        return this._desiredState;
+    }
 
-        // if (this._currentMode !== this._desiredMode ) {
-            const targetMode = this._desiredMode;
-            let mode: Mode;
+
+    private async handleStateOff (): Promise<State> {
+        debugState.finer('handleStateOff(): recentState = %s', this._recentState);
+        if (this._recentState !== 'off') {
+            debugState.info('start OFF');
+            this._fSetpoint = undefined;
+            this._setPointTemp = undefined;
+            this._fDiffChangeAt = undefined;
+            await this._nibe1155.writeDegreeMinutes(1);
+            await this._nibe1155.writeHeatTempMin(20);
+            await this._nibe1155.writeHeatTempMax(20);
+            await this._nibe1155.writeBrinePumpMode('auto');
+            await this._nibe1155.writeSupplyPumpMode('economy');
+        }
+        return 'off';
+    }
+
+    private async handleStateError (): Promise<State> {
+        debugState.finer('handleStateError(): recentState = %s', this._recentState);
+        if (this._recentState !== 'error') {
+            debugState.info('start ERROR');
             try {
-                switch (this._currentMode) {
-                    case 'init': mode = await this.handleStateInit(targetMode); break;
-                    case 'test': mode = await this.handleStateTest(targetMode); break;
-                    case 'off': mode = await this.handleStateOff(targetMode); break;
-                    case 'onlyBrinePumpOn': mode = await this.handleStateOnlyBrinePumpOn(targetMode);  break;
-                    case 'onlyHeatPumpOn': mode = await this.handleStateOnlyHeatPumpOn(targetMode);  break;
-                    case 'pumpsOn': mode = await this.handleStatePumpsOn(targetMode); break;
-                    case 'min': mode = await this.handleStateMin(targetMode); break;
-                    // case 'maxHeatPump':      break;
-                    // case 'max':              break;
-                    // case 'power':            break;
-                    // case 'temp':             break;
-                    // case 'stop':             break;
-                    case 'error': debug.warn('mode error, fix bugs'); break;
-                    default: {
-                        debug.warn('mode %s not supported, change to state "error"', this._currentMode);
-                        this._desiredMode = 'error';
-                    }
-                }
-                this._currentMode = mode;
-                if (this._currentMode === 'error') {
-                    debugState.warn('cannot reach %s, enter mode %s', targetMode, mode);
-                    this._desiredMode = 'error';
-                } else if (this._desiredMode === mode) {
-                    debugState.info('desired mode %s reached successfully', mode);
+                const alarm = await this._nibe1155.readAlarm(0);
+                if (alarm !== 0) {
+                    debug.warn('Nibe1155 Alarm %s', alarm);
                 } else {
-                    debugState.info('mode %s reached successfully, continue to reach desired mode %s', mode, this.desiredMode);
+                    debug.info('Nibe1155 shows no alarm');
                 }
-            } catch (err) {
-                debugState.warn('cannot reach desired mode %s\n%e', targetMode, err);
-            } finally {
-                debugState.fine('remove pending actions, clear timer');
-                this._pendingActions = null;
-                if (this._timer) {
-                    clearInterval(this._timer);
-                    this._timer = null;
+            } catch (err) { debug.warn(err); }
+            this._fSetpoint = undefined;
+            this._setPointTemp = undefined;
+            this._fDiffChangeAt = undefined;
+            await this._nibe1155.writeDegreeMinutes(1);
+            await this._nibe1155.writeHeatTempMin(20);
+            await this._nibe1155.writeHeatTempMax(20);
+            await this._nibe1155.writeBrinePumpMode('auto');
+            await this._nibe1155.writeSupplyPumpMode('economy');
+        }
+        return 'error';
+    }
+
+    private async handleStateOn (): Promise<State> {
+        // debugState.finer('handleStateTest(): recentState = %s', this._recentState);
+
+        const t = this._nibe1155.supplyTemp.value;
+        if (this._recentState !== 'on') {
+            debugState.info('start ON');
+            if (t >= 55) {
+                debugState.info('supply temperature %s reached, switch to OFF', t);
+                return 'off';
+            }
+            await this._nibe1155.writeHeatTempMin(60);
+            await this._nibe1155.writeHeatTempMax(60);
+            if (this._nibe1155.degreeMinutes.value > -60) {
+                await this._nibe1155.writeDegreeMinutes(-60);
+                debugState.fine('setting DM=-60, wait for compressor starting ...');
+            } else {
+                debugState.fine('DM=%s, checking if compressor is running ...');
+            }
+            const now = Date.now();
+            while ((Date.now() - now) < 90000) {
+                await this.delay(500);
+                if (this._nibe1155.compressorFrequency.value > 0) {
+                    break;
                 }
             }
-        //}
-
-        if (this._currentMode !== this._desiredMode) {
-            if (this._desiredMode !== 'error' && this._desiredMode !== 'stop') {
-                process.nextTick( () => {
-                    this.nextState();
-                });
+            this._setPointTemp = t + 0.1;
+            await this._nibe1155.writeHeatTempMin(this._setPointTemp);
+            await this._nibe1155.writeHeatTempMax(this._setPointTemp);
+            if (this._nibe1155.compressorFrequency.value > 0) {
+                debugState.fine('OK: Compressor is running');
+            } else {
+                debugState.warn('ERROR: compressor does not start');
+                return 'error';
             }
         }
-
-        if (this._currentMode === 'test') {
-            await this.handleStateTest('test');
-        }
-    }
-
-    private async handleStateInit (nextMode: Mode): Promise<Mode> {
-        if (nextMode === 'init') { return; }
-        debugState.fine('handleStateInit(): (nextMode = %s)', nextMode);
-        const m = await this.getCurrentState();
-        debugState.info('current state is %s', m);
-        return m;
-    }
-
-    private async handleStateTest (nextMode: Mode): Promise<Mode> {
-        debugState.fine('handleStateTest(): (nextMode = %s)', nextMode);
-        await this.executeActions(nextMode, [
-            new Actions.SetCurve0Temp(30)
-        ], 60000);
-        return 'test';
-    }
-
-
-    private async handleStateOff (nextMode: Mode): Promise<Mode> {
-        debugState.fine('handleStateOff(): (nextMode = %s)', nextMode);
-        switch (nextMode) {
-            case 'off': case 'test': break;
-
-            case 'pumpsOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOn(),
-                    new Actions.SwitchBrinePumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'stop': {
-                await this.executeActions(nextMode, []);
-                break;
-            }
-
-            case 'onlyBrinePumpOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'onlyHeatPumpOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'min': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOn(),
-                    new Actions.SwitchBrinePumpOn(),
-                    new Actions.SetCurve(0),
-                ], 30000 );
-                this._nibe1155.setPointDegreeMinutes = -10;
-                break;
-            }
-
-            default:
-                debugState.warn('off: nextMode %s not implemented', nextMode);
-                nextMode = 'error';
-        }
-        return nextMode;
-    }
-
-    private async handleStateOnlyBrinePumpOn (nextMode: Mode): Promise<Mode> {
-        debugState.fine('handleStateOnlyBrinePumpOn(): (nextMode = %s)', nextMode);
-        switch (nextMode) {
-            case 'onlyBrinePumpOn': case 'test':  break;
-
-            case 'off': case 'stop': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'pumpsOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'onlyHeatPumpOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOff(),
-                    new Actions.SwitchHeatPumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'min': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOn(),
-                    new Actions.SetCurve(0),
-                ], 30000 );
-                break;
-            }
-
-            default:
-                debugState.warn('off: nextMode %s not implemented', nextMode);
-                nextMode = 'error';
-
-
-        }
-        return nextMode;
-    }
-
-
-    private async handleStateOnlyHeatPumpOn (nextMode: Mode): Promise<Mode> {
-        debugState.fine('handleStateOnlyHeatPumpOn(): (nextMode = %s)', nextMode);
-        switch (nextMode) {
-            case 'onlyHeatPumpOn': case 'test':  break;
-
-            case 'off': case 'stop': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOff()
-                ], 30000 );
-                break;
-            }
-
-            case 'onlyBrinePumpOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOff(),
-                    new Actions.SwitchBrinePumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'pumpsOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOn()
-                ], 30000 );
-                break;
-            }
-
-            case 'min': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOn(),
-                    new Actions.SetCurve(0),
-                ], 30000 );
-                break;
-            }
-
-            default:
-                debugState.warn('off: nextMode %s not implemented', nextMode);
-                nextMode = 'error';
-        }
-        return nextMode;
-    }
-
-
-    private async handleStatePumpsOn (nextMode: Mode): Promise<Mode> {
-        debugState.fine('handleStatePumpsOn(): (nextMode = %s)', nextMode);
-        switch (nextMode) {
-            case 'test': break;
-            case 'pumpsOn': break;
-
-            case 'off': case 'stop': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOff(),
-                    new Actions.SwitchBrinePumpOff()
-                ], 30000 );
-                break;
-            }
-
-            case 'onlyBrinePumpOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOff()
-                ], 30000 );
-                break;
-            }
-
-            case 'onlyHeatPumpOn': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchHeatPumpOff()
-                ], 30000 );
-                break;
-            }
-
-            case 'min': {
-                await this.executeActions(nextMode, [
-                    new Actions.SwitchBrinePumpOn(),
-                    new Actions.SwitchHeatPumpOn(),
-                    new Actions.SetCurve0Temp(50),
-                    new Actions.SetCurve(0),
-                ], 30000 );
-                break;
-            }
-
-            default:
-                debugState.warn('off: nextMode %s not implemented', nextMode);
-                nextMode = 'error';
-
-        }
-        return nextMode;
-    }
-
-    private async handleStateMin (nextMode: Mode): Promise<Mode> {
-        debugState.fine('handleStateMin(): (nextMode = %s)', nextMode);
-        switch (nextMode) {
-            case 'test': break;
-            case 'min': {
-                if (this._nibe1155.compressorFrequency.value === 0) {
-                    this._nibe1155.setPointDegreeMinutes = -100;
-                } else {
-                    this._nibe1155.setPointDegreeMinutes = -10;
-                }
-                break;
-            }
-
-            case 'off': case 'stop': {
-                await this.executeActions(nextMode, [
-                    new Actions.SetCurve(1),
-                    new Actions.SwitchHeatPumpOff(),
-                    new Actions.SwitchBrinePumpOff()
-                ], 30000 );
-                break;
-            }
-
-            default:
-                debugState.warn('off: nextMode %s not implemented', nextMode);
-                nextMode = 'error';
-        }
-        return nextMode;
-    }
-
-
-
-    private async getCurrentState (): Promise<Mode> {
-        const hp = Nibe1155.Instance;
-        if (hp.supplyPumpState.value === 10 && hp.brinePumpState.value === 10) {
+        if (this._nibe1155.condensorOutTemp.value >= 57.0) { // 58.8 -> Auto Off Alarm 163
+            debug.info('Temperature %s (Condensor out %s°C) reached, switch to OFF', t, this._nibe1155.condensorOutTemp.value);
             return 'off';
+
+        } else {
+            const p1 = { x: 52, y: 68 };
+            const p2 = { x: 56, y: 26 };
+            let fSetpoint: number;
+            const tV = this._nibe1155.supplyS1Temp.value;
+            if (tV < p1.x) {
+                fSetpoint = p1.y;
+            } else if (t >= p2.x) {
+                fSetpoint = p2.y;
+            } else {
+                const k = (p1.y - p2.y) / (p1.x - p2.x);
+                const d = p1.y - k * p1.x;
+                fSetpoint = Math.round(k * tV + d);
+            }
+            this._fSetpoint = fSetpoint;
+            const diff = this._nibe1155.compressorFrequency.value - fSetpoint;
+            if (Math.abs(diff) > 3) {
+                if (!this._fDiffChangeAt || (this._fDiffChangeAt > 0 && (Date.now() - this._fDiffChangeAt) >= 10000)) {
+                    const dm = diff > 0 ? Math.min(  -1, this._nibe1155.degreeMinutes.value + 10) :
+                                          Math.max(-350, this._nibe1155.degreeMinutes.value - 10);
+                    debug.info('fSetpoint on %s°C = %sHz out of range (f=%sHz), change degreeminutes to %s',
+                                tV, fSetpoint, this._nibe1155.compressorFrequency.value, dm);
+                    await this._nibe1155.writeDegreeMinutes(dm);
+                    this._fDiffChangeAt = Date.now();
+                }
+            }
+
         }
-        if (hp.supplyPumpState.value !== 10 && hp.brinePumpState.value === 10) {
-            return 'onlyHeatPumpOn';
+
+        if ((t + 0.2) > this._setPointTemp || (t - 0.2) < this._setPointTemp) {
+            this._setPointTemp = t + 0.1;
+            debug.info('Adjust setpoint temp to %s',  this._setPointTemp);
+            await this._nibe1155.writeHeatTempMin(this._setPointTemp);
+            await this._nibe1155.writeHeatTempMax(this._setPointTemp);
         }
-        if (hp.supplyPumpState.value === 10 && hp.brinePumpState.value !== 10) {
-            return 'onlyBrinePumpOn';
-        }
-        if (hp.compressorFrequency.value !== 0) {
-            return 'min';
-        }
-        return 'pumpsOn';
+
+        return 'on';
     }
+
+
+    private async handleStateTest (): Promise<State> {
+        // debugState.finer('handleStateTest(): recentState = %s', this._recentState);
+
+        const t = this._nibe1155.supplyTemp.value;
+        if (this._recentState !== 'test') {
+            debugState.info('start TEST');
+            this._setPointTemp = t + 2;
+            await this._nibe1155.writeHeatTempMin(this._setPointTemp);
+            await this._nibe1155.writeHeatTempMax(this._setPointTemp);
+            if (this._nibe1155.degreeMinutes.value > -60) {
+                await this._nibe1155.writeDegreeMinutes(-60);
+                debugState.fine('setting DM=-60, wait for compressor starting ...');
+            } else {
+                debugState.fine('DM=%s, checking if compressor is running ...');
+            }
+            const now = Date.now();
+            while ((Date.now() - now) < 60000) {
+                await this.delay(500);
+                if (this._nibe1155.compressorFrequency.value > 0) {
+                    break;
+                }
+            }
+            if (this._nibe1155.compressorFrequency.value > 0) {
+                debugState.fine('OK: Compressor is running');
+            } else {
+                debugState.warn('ERROR: compressor does not start');
+                return 'error';
+            }
+        }
+
+        if (this._nibe1155.condensorOutTemp.value >= 58.5) { // 58.8 -> Auto Off Alarm 163
+            debug.info('Temperature %s (Condensor out %s°C) reached, switch to OFF', t, this._nibe1155.condensorOutTemp.value);
+            return 'off';
+
+        } else {
+            this._fSetpoint = undefined;
+            const min = -100;
+            const max = -100;
+            if (this._nibe1155.degreeMinutes.value < min) {
+                debug.info('Adjust degree minutes to %s',  min);
+                await this._nibe1155.writeDegreeMinutes(min);
+            }
+            if (this._nibe1155.degreeMinutes.value > max) {
+                const x = Math.max(this._nibe1155.degreeMinutes.value - 10, max);
+                debug.info('Adjust degree minutes to %s', x);
+                await this._nibe1155.writeDegreeMinutes(x);
+            }
+        }
+
+
+        if ((t + 1.0) > this._setPointTemp || (t + 0.5) < this._setPointTemp) {
+            this._setPointTemp = t + 2;
+            debug.info('Adjust setpoint temp to %s',  this._setPointTemp);
+            await this._nibe1155.writeHeatTempMin(this._setPointTemp);
+            await this._nibe1155.writeHeatTempMax(this._setPointTemp);
+        }
+
+        return 'test';
+
+
+    }
+
 
 }
