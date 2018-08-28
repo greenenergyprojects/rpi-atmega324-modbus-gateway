@@ -14,3 +14,16 @@ export interface INibe1155Values {
     simpleValues?: { [id: string ]: { rawValue: number; rawValueAt: number } };
     logsetIds?: number [];
 }
+
+export interface IHeatpumpMode {
+    createdAt: Date;
+    desiredMode: string;
+    currentMode?: string;
+    pin?: string;
+    fSetpoint?: number;
+    fMin?: number;
+    fMax?: number;
+    tempSetpoint?: number;
+    tempMin?: number;
+    tempMax?: number;
+}

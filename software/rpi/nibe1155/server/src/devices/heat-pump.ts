@@ -4,8 +4,9 @@ const debug: debugsx.IFullLogger = debugsx.createFullLogger('devices:HeatPump');
 const debugState: debugsx.IFullLogger = debugsx.createFullLogger('HeatPump.State');
 
 import { Nibe1155 } from './nibe1155';
+import { IHeatpumpMode } from '../client/nibe1155-values';
 
-export type State = 'init' | 'off' | 'error' | 'test' | 'on';
+export type State = 'init' | 'off' | 'error' | 'test' | 'frequency';
 
 export interface IController {
     createdAt: Date;
@@ -46,10 +47,12 @@ export class HeatPump {
     private _setPointTemp: number;
     private _fDiffChangeAt: number;
     private _fSetpoint: number;
+    private _desiredFrequency: number;
 
     private constructor (nibe1155: Nibe1155) {
         this._nibe1155 = nibe1155;
         this._state = 'init';
+        this._desiredFrequency = 40;
     }
 
 
@@ -70,6 +73,29 @@ export class HeatPump {
         return this._state;
     }
 
+    public async setDesiredMode (mode: IHeatpumpMode): Promise<IHeatpumpMode> {
+        await this.delay(1000);
+        if (!(mode.fSetpoint >= 20 && (mode.fSetpoint <= 90))) { throw new Error('illegal fSetpoint'); }
+        switch (mode.desiredMode) {
+            case 'off': this._desiredState = 'off'; break;
+            case 'test': this._desiredState = 'test'; break;
+            case 'frequency': {
+                this._desiredState = 'frequency';
+                this._desiredFrequency = mode.fSetpoint;
+                break;
+            }
+            default: throw new Error('unsupported mode ' + mode.desiredMode);
+        }
+        const rv: IHeatpumpMode = {
+            createdAt: new Date(),
+            currentMode: this._state,
+            desiredMode: this._desiredState,
+            fSetpoint: this._desiredFrequency
+        }
+        debug.warn(rv);
+        return rv;
+    }
+
     public toObject (): IController {
         const rv: any = {
             createdAt: new Date(),
@@ -77,7 +103,8 @@ export class HeatPump {
             state: this._state,
             inProgressSince: this._inProgressSince,
             setPointTemp: this._setPointTemp,
-            fSetpoint: this._fSetpoint
+            fSetpoint: this._fSetpoint,
+            desiredFrequency: this._desiredFrequency
         };
         if (this._state !== this._desiredState) {
             rv.desiredState = this._desiredState;
@@ -101,11 +128,11 @@ export class HeatPump {
             this._inProgressSince = new Date();
             let nextState: State;
             switch (this._state) {
-                case 'init':  nextState = await this.handleStateInit(); break;
-                case 'off':   nextState = await this.handleStateOff(); break;
-                case 'error': nextState = await this.handleStateError(); break;
-                case 'test':  nextState = await this.handleStateTest(); break;
-                case 'on':    nextState = await this.handleStateOn(); break;
+                case 'init':      nextState = await this.handleStateInit(); break;
+                case 'off':       nextState = await this.handleStateOff(); break;
+                case 'error':     nextState = await this.handleStateError(); break;
+                case 'test':      nextState = await this.handleStateTest(); break;
+                case 'frequency': nextState = await this.handleStateFrequency(); break;
                 default:
                     debugState.warn('state %s not supported', this._state); break;
             }
@@ -130,6 +157,10 @@ export class HeatPump {
 
     private async handleStateOff (): Promise<State> {
         debugState.finer('handleStateOff(): recentState = %s', this._recentState);
+        if (this._desiredState !== 'off') {
+            debugState.info('stop OFF -> %s', this._desiredState);
+            return this._desiredState;
+        }
         if (this._recentState !== 'off') {
             debugState.info('start OFF');
             this._fSetpoint = undefined;
@@ -146,6 +177,10 @@ export class HeatPump {
 
     private async handleStateError (): Promise<State> {
         debugState.finer('handleStateError(): recentState = %s', this._recentState);
+        if (this._desiredState !== 'error') {
+            debugState.info('stop ERROR -> %s', this._desiredState);
+            return this._desiredState;
+        }
         if (this._recentState !== 'error') {
             debugState.info('start ERROR');
             try {
@@ -168,12 +203,16 @@ export class HeatPump {
         return 'error';
     }
 
-    private async handleStateOn (): Promise<State> {
+    private async handleStateFrequency (): Promise<State> {
         // debugState.finer('handleStateTest(): recentState = %s', this._recentState);
 
         const t = this._nibe1155.supplyTemp.value;
-        if (this._recentState !== 'on') {
-            debugState.info('start ON');
+        if (this._desiredState !== 'frequency') {
+            debugState.info('stop ON (Frequency) -> %s', this._desiredState);
+            return this._desiredState;
+        }
+        if (this._recentState !== 'frequency') {
+            debugState.info('start ON (Frequency)');
             if (t >= 55) {
                 debugState.info('supply temperature %s reached, switch to OFF', t);
                 return 'off';
@@ -208,7 +247,7 @@ export class HeatPump {
             return 'off';
 
         } else {
-            const p1 = { x: 52, y: 68 };
+            const p1 = { x: 53, y: this._desiredFrequency };
             const p2 = { x: 56, y: 26 };
             let fSetpoint: number;
             const tV = this._nibe1155.supplyS1Temp.value;
@@ -243,7 +282,7 @@ export class HeatPump {
             await this._nibe1155.writeHeatTempMax(this._setPointTemp);
         }
 
-        return 'on';
+        return 'frequency';
     }
 
 
@@ -251,6 +290,10 @@ export class HeatPump {
         // debugState.finer('handleStateTest(): recentState = %s', this._recentState);
 
         const t = this._nibe1155.supplyTemp.value;
+        if (this._desiredState !== 'test') {
+            debugState.info('stop TEST -> %s', this._desiredState);
+            return this._desiredState;
+        }
         if (this._recentState !== 'test') {
             debugState.info('start TEST');
             this._setPointTemp = t + 2;

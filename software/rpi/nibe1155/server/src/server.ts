@@ -28,6 +28,7 @@ interface IServerConfig {
         disabled?: boolean,
         config?: string
     };
+    pin?: string;
 }
 
 export class Server {
@@ -110,6 +111,10 @@ export class Server {
             debug.warn(err);
         });
         this._server = server;
+    }
+
+    public isPinOK (pin: string): boolean {
+        return typeof this._config.pin === 'string' && this._config.pin.length === 4 && this._config.pin === pin;
     }
 
     private errorHandler (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {

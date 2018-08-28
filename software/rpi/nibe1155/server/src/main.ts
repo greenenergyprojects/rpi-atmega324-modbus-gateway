@@ -77,7 +77,7 @@ doStartup();
 
 async function doHeatPumpControlling () {
     const hp = HeatPump.Instance;
-    await hp.start('on');
+    await hp.start('off');
     // Nibe1155.Instance.setPointDegreeMinutes = -5;
     // await Nibe1155.Instance.writeCutOffFreq2Stop(120);
     // await Nibe1155.Instance.readCutOffFrequStop2(0);

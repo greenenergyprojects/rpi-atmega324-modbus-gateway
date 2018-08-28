@@ -12,6 +12,8 @@ import { handleError, RouterError, BadRequestError, AuthenticationError } from '
 import { Nibe1155 } from '../devices/nibe1155';
 import { Nibe1155Modbus } from '../devices/nibe1155-modbus';
 import { HeatPump } from '../devices/heat-pump';
+import { IHeatpumpMode } from '../client/nibe1155-values';
+import { Server } from '../server';
 
 
 export class RouterNibe {
@@ -33,6 +35,7 @@ export class RouterNibe {
         this._router = express.Router();
         this._router.get('/register', (req, res, next) => this.getRegister(req, res, next));
         this._router.get('/status', (req, res, next) => this.getStatus(req, res, next));
+        this._router.post('/mode', (req, res, next) => this.postMode(req, res, next));
         // this._router.get('/*', (req, res, next) => this.getAll(req, res, next));
 
     }
@@ -95,6 +98,24 @@ export class RouterNibe {
             } catch (err) {}
             debug.fine('query %o -> response: %o', req.query, rv);
             res.json(rv);
+        } catch (err) {
+            handleError(err, req, res, next, debug);
+        }
+    }
+
+    private async postMode (req: express.Request, res: express.Response, next: express.NextFunction) {
+        try {
+            const x: IHeatpumpMode = req.body;
+            if (!x || !x.createdAt || !x.desiredMode) { throw new BadRequestError('invalid body'); }
+            if (!x.pin || !Server.Instance.isPinOK(x.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
+            try {
+                delete x.pin;
+                const rv = await HeatPump.Instance.setDesiredMode(x);
+                debug.fine('query %o -> response: %o', req.query, rv);
+                res.json(rv);
+            } catch (err) {
+                throw new BadRequestError('cannot set mode', err);
+            }
         } catch (err) {
             handleError(err, req, res, next, debug);
         }
