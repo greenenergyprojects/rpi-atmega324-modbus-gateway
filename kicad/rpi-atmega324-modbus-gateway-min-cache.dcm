@@ -1,0 +1,15 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP PRJ-ATMEGA324P-20AU
+D TQFP44, 32k Flash, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://ww1.microchip.com/downloads/en/DeviceDoc/ATmega324PV-AVR-MCU-with-CIP-and-picopower-40002102A.pdf
+$ENDCMP
+#
+$CMP SN65HVD11
+D Half duplex RS-485/RS-422, 3.3V, 10Mbps, ±16kV electro-static discharge (ESD) protection, no slew-rate, with low-power shutdown, with receiver/driver enable, 32 receiver drive kapacitity, DIP-8 and SOIC-8
+K Half duplex RS-485/RS-422, 3.3V, 10 Mbps, ±15kV electro-static discharge (ESD) protection, no slew-rate, with low-power shutdown, with receiver/driver enable, 32 receiver drive kapacitity, DIP-8 and SOIC-8
+F http://www.ti.com/lit/ds/symlink/sn65hvd11-ht.pdf
+$ENDCMP
+#
+#End Doc Library
