@@ -8,17 +8,7 @@ See [https://support.jlcpcb.com/article/44-how-to-export-kicad-pcb-to-gerber-fil
 
 | Reference | Description |
 | --------- | ----------- |
-| J2 | FTDI connector, exchange TxD and RxD
-| J5 | Add PCB Text "ISP"
-| Mounting holes | increase drill diameter to at least 3mm
-| SW2 | Add text ON/OFF
-| SW1 | locate outside µC area
-| J14,J15 | increase drill diameter
-| D1,D2, D3, D4 | invert logic, led on on data instead of idle, exchange text RxD, TxD, check logic for rx led in case of nRD = 1 (led should be off)
-| Y1 | connect XTAL1 to header (as emergency frequency input)
-| C2 | 100nF --> 1nF, otherwise reset via C1 will not work
-| R14, R16 | change to pull up (3V3) resistor
-
+|           |             |
 
 
 # Software

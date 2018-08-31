@@ -31,9 +31,6 @@ LIBS:opto
 LIBS:atmel
 LIBS:contrib
 LIBS:valves
-LIBS:sx-atmega
-LIBS:sx-raspberry
-LIBS:sx-terminals
 LIBS:rpi-atmega324-modbus-gateway-min-cache
 EELAYER 25 0
 EELAYER END
@@ -41,8 +38,8 @@ $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 2
 Title "RPI Atmega324 Modbus Gateway"
-Date "2018-06-10"
-Rev "V0.1"
+Date "2018-08-30"
+Rev "V0.2"
 Comp "Manfred.Steiner@gmx.at"
 Comment1 ""
 Comment2 ""
@@ -138,7 +135,7 @@ L C C2
 U 1 1 5B1385C4
 P 6450 1850
 F 0 "C2" H 6475 1950 50  0000 L CNN
-F 1 "100n" H 6475 1750 50  0000 L CNN
+F 1 "1n" H 6475 1750 50  0000 L CNN
 F 2 "Capacitors_SMD:C_1206_HandSoldering" H 6488 1700 50  0001 C CNN
 F 3 "" H 6450 1850 50  0001 C CNN
 	1    6450 1850
@@ -729,7 +726,6 @@ nSS
 Text Label 9550 5250 0    60   ~ 0
 nSS
 NoConn ~ 10750 2200
-NoConn ~ 10750 2300
 $Comp
 L LED D7
 U 1 1 5B19F880
@@ -988,8 +984,6 @@ Wire Wire Line
 Wire Wire Line
 	6000 5500 6200 5500
 Wire Wire Line
-	7100 4500 7100 6400
-Wire Wire Line
 	3400 5800 7100 5800
 Wire Wire Line
 	6200 5700 3400 5700
@@ -998,11 +992,6 @@ Wire Wire Line
 Connection ~ 3900 5800
 Wire Wire Line
 	3900 5100 3900 5000
-Wire Wire Line
-	7100 6400 5450 6400
-Connection ~ 7100 5800
-Wire Wire Line
-	6000 6300 6000 5600
 Wire Wire Line
 	6000 5600 6200 5600
 Wire Wire Line
@@ -1217,8 +1206,6 @@ F 3 "" H 5000 6150 50  0001 C CNN
 	1    5450 6500
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	6000 6300 5450 6300
 $Comp
 L GND #PWR021
 U 1 1 5B1CF338
@@ -1234,4 +1221,17 @@ Wire Wire Line
 	3500 7100 3500 7200
 Text Notes 3650 7300 0    60   ~ 0
 Power Supply for standalone without Raspberry PI
+Wire Wire Line
+	10750 2300 10300 2300
+Text Label 10350 2300 0    60   ~ 0
+XTAL1
+Wire Wire Line
+	6000 5600 6000 6400
+Wire Wire Line
+	6000 6400 5450 6400
+Wire Wire Line
+	7100 4500 7100 6300
+Connection ~ 7100 5800
+Wire Wire Line
+	7100 6300 5450 6300
 $EndSCHEMATC
