@@ -17,6 +17,7 @@ See [https://support.jlcpcb.com/article/44-how-to-export-kicad-pcb-to-gerber-fil
 | D1,D2, D3, D4 | invert logic, led on on data instead of idle, exchange text RxD, TxD, check logic for rx led in case of nRD = 1 (led should be off)
 | Y1 | connect XTAL1 to header (as emergency frequency input)
 | C2 | 100nF --> 1nF, otherwise reset via C1 will not work
+| R14, R16 | change to pull up (3V3) resistor
 
 
 
