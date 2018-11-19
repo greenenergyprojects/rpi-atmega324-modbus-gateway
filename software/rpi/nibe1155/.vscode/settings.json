@@ -7,6 +7,7 @@
         "**/.sftp*": true,
         "**/.gitkeep": true,
         "**/dist": true,
+        "**/dist_remote": true,
         "**/old": true,
         ".vscode/": true,
         "**/.gitignore": true,

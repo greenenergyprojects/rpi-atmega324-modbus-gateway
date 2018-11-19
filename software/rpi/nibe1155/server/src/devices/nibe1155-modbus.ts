@@ -10,7 +10,7 @@ export type Nibe1155ModbusIds =
     47007 | 47011 | 47015 | 47019 | 47020 | 47021 | 47022 | 47023 | 47024 | 47025 | 47026 |
     47100 | 47103 | 47104 |
     47137 | 47138 | 47139 | 47206 | 47209 | 47212 | 47214 | 47370 | 47371 | 47376 | 47375 |
-    48072 |
+    48072 | 48453 |
     48659 | 48660 | 48661 | 48662 | 48663 | 48664;
 
 export interface INibe1155 {
@@ -74,6 +74,7 @@ export interface INibe1155 {
     stopTempHeating:        INibe1155Value;
     stopTempAddHeating:     INibe1155Value;
     dmDiffStartAddHeating:  INibe1155Value;
+    autoHeatMedPumpSpeed:   INibe1155Value;
     cutOffFrequActivated2:  INibe1155Value;
     cutOffFrequActivated1:  INibe1155Value;
     cutOffFrequStart2:      INibe1155Value;
@@ -149,6 +150,9 @@ export class Nibe1155Modbus {
         , 47375: { id: 47375, label: 'stopTempHeating',        type: 'R/W', unit: '°C',  size: 's16', factor: 10,   format: '%5.01f', description: 'Heating stop temperature', help: '-20°C .. +40°C' }
         , 47376: { id: 47376, label: 'stopTempAddHeating',     type: 'R/W', unit: '°C',  size: 's16', factor: 10,   format: '%5.01f', description: 'Additive Heating stop temperature', help: '-25°C .. 40°C' }
         , 48072: { id: 48072, label: 'dmDiffStartAddHeating',  type: 'R/W', unit: '',    size: 's16', factor: 1,    format: '%3d',     description: 'DM below last comp step to start elect. heat.', help: '?' }
+
+        , 48453: { id: 48453, label: 'autoHeatMedPumpSpeed',   type: 'R/W', unit: '%',   size: 's8',  factor: 1,    format: '%1d',     description: 'Auto heat medium pump speed, heat', help: '' }
+
         , 48659: { id: 48659, label: 'cutOffFrequActivated2',  type: 'R/W', unit: '',    size: 's8',  factor: 1,    format: '%1d',     description: 'Cut of frequency activated 2', help: 'forbid start 2 ... stop 2' }
         , 48660: { id: 48660, label: 'cutOffFrequActivated1',  type: 'R/W', unit: '',    size: 's8',  factor: 1,    format: '%1d',     description: 'Cut of frequency activated 1', help: 'forbid start 1 ... stop 1' }
         , 48661: { id: 48661, label: 'cutOffFrequStart2',      type: 'R/W', unit: 'Hz',  size: 'u8',  factor: 1,    format: '%3d',     description: 'Cut of frequency start 2', help: '17Hz .. 115Hz' }
@@ -220,6 +224,7 @@ export class Nibe1155Modbus {
         , stopTempHeating:        Nibe1155Modbus.regDefById[47375]
         , stopTempAddHeating:     Nibe1155Modbus.regDefById[47376]
         , dmDiffStartAddHeating:  Nibe1155Modbus.regDefById[48072]
+        , autoHeatMedPumpSpeed:   Nibe1155Modbus.regDefById[48453]
         , cutOffFrequActivated2:  Nibe1155Modbus.regDefById[48659]
         , cutOffFrequActivated1:  Nibe1155Modbus.regDefById[48660]
         , cutOffFrequStart2:      Nibe1155Modbus.regDefById[48661]

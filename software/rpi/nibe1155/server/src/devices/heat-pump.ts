@@ -5,8 +5,11 @@ const debugState: debugsx.IFullLogger = debugsx.createFullLogger('HeatPump.State
 
 import { Nibe1155 } from './nibe1155';
 import { IHeatpumpMode } from '../client/nibe1155-values';
+import { thisExpression } from 'babel-types';
+import { Value } from './value';
+import { ModeEconomy } from './modes/mode-economy';
 
-export type State = 'init' | 'off' | 'error' | 'test' | 'frequency';
+export type State = 'init' | 'off' | 'error' | 'test' | 'frequency' | 'economy';
 
 export interface IController {
     createdAt: Date;
@@ -48,11 +51,14 @@ export class HeatPump {
     private _fDiffChangeAt: number;
     private _fSetpoint: number;
     private _desiredFrequency: number;
+    private _modeEconomy: ModeEconomy;
+    private _paramEconomy: { fMin: number, fMax: number, tMin: number, tMax: number } = { fMin: 26, fMax: 90, tMin: 20, tMax: 40 };
 
     private constructor (nibe1155: Nibe1155) {
         this._nibe1155 = nibe1155;
+        this._modeEconomy = new ModeEconomy(nibe1155);
         this._state = 'init';
-        this._desiredFrequency = 40;
+        this._desiredFrequency = 30;
     }
 
 
@@ -74,12 +80,19 @@ export class HeatPump {
     }
 
     public async setDesiredMode (mode: IHeatpumpMode): Promise<IHeatpumpMode> {
-        await this.delay(1000);
-        if (!(mode.fSetpoint >= 20 && (mode.fSetpoint <= 90))) { throw new Error('illegal fSetpoint'); }
+        // await this.delay(1000);
         switch (mode.desiredMode) {
-            case 'off': this._desiredState = 'off'; break;
-            case 'test': this._desiredState = 'test'; break;
+            case 'off':     this._desiredState = 'off'; break;
+            case 'test':    this._desiredState = 'test'; break;
+
+            case 'economy': {
+                this._desiredState = 'economy';
+                this._modeEconomy.setParams(mode);
+                break;
+            }
+
             case 'frequency': {
+                if (!(mode.fSetpoint >= 20 && (mode.fSetpoint <= 90))) { throw new Error('illegal fSetpoint'); }
                 this._desiredState = 'frequency';
                 this._desiredFrequency = mode.fSetpoint;
                 break;
@@ -122,6 +135,18 @@ export class HeatPump {
 
     }
 
+    private limitNumber (value: number, min: number, max: number, defaultValue: number): number {
+        if (value >= min && value <= max) {
+            return value;
+        } else if (value < min) {
+            return min;
+        } else if (value > max) {
+            return max;
+        } else {
+            return defaultValue;
+        }
+    }
+
     private async handleStateMachine () {
         if (this._inProgressSince) { return; }
         try {
@@ -133,6 +158,7 @@ export class HeatPump {
                 case 'error':     nextState = await this.handleStateError(); break;
                 case 'test':      nextState = await this.handleStateTest(); break;
                 case 'frequency': nextState = await this.handleStateFrequency(); break;
+                case 'economy':   nextState = await this.handleStateEconomy(); break;
                 default:
                     debugState.warn('state %s not supported', this._state); break;
             }
@@ -284,6 +310,28 @@ export class HeatPump {
 
         return 'frequency';
     }
+
+    private async handleStateEconomy (): Promise<State> {
+        try {
+            if (this._desiredState !== 'economy') {
+                debugState.info('stop (Economy) -> %s', this._desiredState);
+                await this._modeEconomy.stop();
+                return this._desiredState;
+            }
+            if (this._recentState !== 'economy') {
+                debugState.info('start Economy');
+                await this._modeEconomy.start();
+            } else {
+                await this._modeEconomy.run();
+            }
+            return 'economy';
+
+        } catch (err) {
+            debug.warn(err);
+            return 'off';
+        }
+    }
+
 
 
     private async handleStateTest (): Promise<State> {

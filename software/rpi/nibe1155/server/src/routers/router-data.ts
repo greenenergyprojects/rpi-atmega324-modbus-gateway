@@ -78,7 +78,6 @@ export class RouterData {
                     ids.push(id);
                 }
             }
-            debugger;
             const n = Nibe1155.Instance;
             const rv: INibe1155Values = {
                 controller: req.query.controller && req.query.controller === 'false' ? undefined : HeatPump.Instance.toObject(),

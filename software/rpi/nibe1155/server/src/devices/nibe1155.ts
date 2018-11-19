@@ -85,6 +85,7 @@ export interface IExtendedNibe1155Values extends INibe1155Values {
     stopTempHeating:        string;
     stopTempAddHeating:     string;
     dmDiffStartAddHeating:  string;
+    autoHeatMedPumpSpeed:   string;
     cutOffFrequActivated2:  string;
     cutOffFrequActivated1:  string;
     cutOffFrequStart2:      string;
@@ -195,6 +196,7 @@ export class Nibe1155 {
     private _stopTempHeating:        Nibe1155Value;
     private _stopTempAddHeating:     Nibe1155Value;
     private _dmDiffStartAddHeating:  Nibe1155Value;
+    private _autoHeatMedPumpSpeed:   Nibe1155Value;
     private _cutOffFrequActivated2:  Nibe1155Value;
     private _cutOffFrequActivated1:  Nibe1155Value;
     private _cutOffFrequStart2:      Nibe1155Value;
@@ -270,6 +272,7 @@ export class Nibe1155 {
         this._stopTempHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.stopTempHeating);
         this._stopTempAddHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.stopTempAddHeating);
         this._dmDiffStartAddHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.dmDiffStartAddHeating);
+        this._autoHeatMedPumpSpeed = new Nibe1155Value(Nibe1155Modbus.regDefByLable.autoHeatMedPumpSpeed);
         this._cutOffFrequActivated2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequActivated2);
         this._cutOffFrequActivated1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequActivated1);
         this._cutOffFrequStart2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequStart2);
@@ -308,7 +311,7 @@ export class Nibe1155 {
     }
 
     public off (event: Event, listener: (value: number, oldValue?: number, v?: Nibe1155Value) => void): events.EventEmitter {
-        return this._eventEmitter.off(event, listener);
+        return this._eventEmitter.removeListener(event, listener);
     }
 
     public get eventEmitter (): events.EventEmitter {
@@ -581,6 +584,10 @@ export class Nibe1155 {
         return this.getRegisterValue(this._dmDiffStartAddHeating.id, notOlderThanMillis);
     }
 
+    public async readAutoHeatMedPumpSpeed (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._autoHeatMedPumpSpeed.id, notOlderThanMillis);
+    }
+
     public async readIsCutOffFrequ2Activated (notOlderThanMillis?: number): Promise<'activated' | 'not activated'> {
         const x = await this.getRegisterValue(this._cutOffFrequActivated2.id, notOlderThanMillis);
         switch (x) {
@@ -829,6 +836,13 @@ export class Nibe1155 {
         return this.writeRegister(this._dmDiffStartAddHeating, Math.round(value));
     }
 
+    // 48453
+    public async writeAutoHeatMedPumpSpeed (value: number): Promise<ModbusRequest> {
+        value = Math.max( 0, value);
+        value = Math.min( 100, value);
+        return this.writeRegister(this._autoHeatMedPumpSpeed, Math.round(value));
+    }
+
     public async writeActivateCutOffFreq1 (value: boolean): Promise<ModbusRequest> {
         switch (value) {
             case true:  return this.writeRegister(this._cutOffFrequActivated1, 1);
@@ -1058,6 +1072,7 @@ export class Nibe1155 {
             stopTempHeating:        this._stopTempHeating.valueAsString(true),
             stopTempAddHeating:     this._stopTempAddHeating.valueAsString(true),
             dmDiffStartAddHeating:  this._dmDiffStartAddHeating.valueAsString(true),
+            autoHeatMedPumpSpeed:   this._autoHeatMedPumpSpeed.valueAsString(true),
             cutOffFrequActivated2:  this._cutOffFrequActivated2.valueAsString(true),
             cutOffFrequActivated1:  this._cutOffFrequActivated1.valueAsString(true),
             cutOffFrequStart2:      this._cutOffFrequStart2.valueAsString(true),

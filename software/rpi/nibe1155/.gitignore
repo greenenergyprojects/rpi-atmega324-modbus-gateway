@@ -2,4 +2,5 @@
 
 **/*.log
 **/dist
+**/dist_remote
 **/node_modules*

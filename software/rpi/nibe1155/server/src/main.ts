@@ -1,6 +1,6 @@
 
 
-export const VERSION = '0.0.1';
+export const VERSION = '0.2.0';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -44,7 +44,8 @@ for (const a in debugConfig) {
 import * as debugsx from 'debug-sx';
 const debug: debugsx.IDefaultLogger = debugsx.createDefaultLogger('main');
 
-debugsx.addHandler(debugsx.createConsoleHandler('stdout'));
+// debugsx.addHandler(debugsx.createConsoleHandler('stdout'));
+debugsx.addHandler(debugsx.createRawConsoleHandler());
 const logfileConfig = nconf.get('logfile');
 if (logfileConfig) {
     for (const att in logfileConfig) {
@@ -78,6 +79,16 @@ doStartup();
 async function doHeatPumpControlling () {
     const hp = HeatPump.Instance;
     await hp.start('off');
+    await hp.setDesiredMode( {
+        createdAt: new Date(),
+        desiredMode: 'economy',
+        fMin: 25,
+        fMax: 50,
+        tempMin: 35,
+        tempMax: 45
+    });
+
+
     // Nibe1155.Instance.setPointDegreeMinutes = -5;
     // await Nibe1155.Instance.writeCutOffFreq2Stop(120);
     // await Nibe1155.Instance.readCutOffFrequStop2(0);

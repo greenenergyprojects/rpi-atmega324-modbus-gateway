@@ -13,7 +13,6 @@ import { sprintf } from 'sprintf-js';
 import * as nconf from 'nconf';
 import { ModbusAsciiFrame } from './modbus-ascii-frame';
 import { ModbusRequestFactory, ModbusRequest, ModbusRequestError } from './modbus-request';
-import { rejects } from 'assert';
 
 
 export class ModbusSerial {
