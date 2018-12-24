@@ -1,9 +1,9 @@
 
 import { Request, Response, NextFunction } from 'express';
-import { Auth } from '../auth';
 import { Server } from '../server';
 
 import { ISimpleLogger } from 'debug-sx';
+import { Auth } from '../auth';
 
 
 
@@ -76,7 +76,7 @@ export function handleError (err: Error,  req: Request, res: Response, next: Nex
         debug.info('%s\n  %s\n  %s %s\n%o', msg, ts, req.method, req.originalUrl, req.body);
     }
     if (status === 401) {
-        const authServerUri = Auth.Instance.authServerUri;
+        const authServerUri = Auth.getInstance().authorizationUri;
         if (authServerUri) {
             const v = 'Bearer authorization_uri="' + authServerUri +
                       '", error="' + 'Unauthorized' + '", error_description="' + 'contact web-master with ' + ts + '"';

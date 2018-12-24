@@ -1,118 +1,91 @@
+
+import * as debugsx from 'debug-sx';
+const debug: debugsx.IFullLogger = debugsx.createFullLogger('auth');
+
 import * as path from 'path';
 import * as fs from 'fs';
 
 import * as express from 'express';
 import * as jwt from 'jsonwebtoken';
-import * as nconf from 'nconf';
 
 import { handleError, RouterError, BadRequestError, AuthenticationError, NotFoundError } from './routers/router-error';
-import { UserLogin, IUserLogin } from './client/user-login';
-import { User, IUser } from './db/user';
-import { Database } from './db/database';
-import { IRequestWithUser, IRequestUser } from './server';
-// import { delayMillis } from './utils/util';
 
-import * as debugsx from 'debug-sx';
-const debug: debugsx.IFullLogger = debugsx.createFullLogger('auth');
+import { User, IUserLogin, IUserAuth } from './data/common/server/user';
+import { DbUser } from './db-user';
+
+
+export interface IAuthConfig {
+    privatekey: string;
+    publickey: string;
+    authorizationUri: string;
+    accessTokenTimeout: string;
+    remoteTokenTimeout: string;
+    remoteTokenMinimumSeconds: number;
+    serverUri?: string;
+    foreignLogin?: [ { userid: string, account: [ string | RegExp ] } ];
+}
+
 
 export class Auth {
 
-    public static async createInstance(): Promise<Auth> {
+    public static async createInstance (config?: IAuthConfig): Promise<Auth> {
         if (Auth._instance) { throw new Error('instance already created'); }
         Auth._instance = new Auth();
             // Object.seal(this._instance);
             // Object.seal(this._instance.constructor);
-        await Auth._instance.init();
+        await Auth._instance.init(config);
         return Auth._instance;
     }
 
-    private static _instance: Auth;
-
-    public static get Instance (): Auth {
+    public static getInstance (): Auth {
         if (!this._instance) { throw new Error('instance not created yet'); }
         return this._instance;
     }
 
+    private static _instance: Auth;
+
 
     // **********************************
 
-    private _configAuth: IConfigAuth;
+    private _config: IAuthConfig;
     private _privateKey: Buffer;
-    private _publicKeys: Buffer [] = [];
-    private _mapUser: { [htlid: string]: User } = {};
+    private _publicKey: Buffer;
 
     private constructor () {
     }
 
-    public get authServerUri (): string {
-        return this._configAuth.server_uri;
+    public get authorizationUri (): string {
+        return this._config && this._config.authorizationUri;
     }
 
-    public async handleGetAuth (req: IRequestWithUser, res: express.Response, next: express.NextFunction) {
-        try {
-            const userAuth: IUserAuth = { htlid: req.user.id };
-            userAuth.accessToken = this.createAccessToken({htlid: req.user.id, type: 'access'});
-            const u = await Database.Instance.getUser(req.user.id);
-            if (!u || u.userid !== req.user.id) {
-                throw new AuthenticationError('cannot refresh user ' + req.user.id + ' from database');
-            }
-            this._mapUser[u.userid] = u;
-            userAuth.user = u.toIAuthUser();
-            // await delayMillis(500);
-            res.json(userAuth);
-        } catch (err) {
-            handleError(err, req, res, next, debug);
-        }
+    public createRemoteToken (data: string | object | Buffer): string {
+        return this.createToken(data, this._config.remoteTokenTimeout, this._config.remoteTokenMinimumSeconds);
     }
 
-    public async handlePostAuth (req: express.Request, res: express.Response, next: express.NextFunction) {
-        try {
-            let userLogin: UserLogin;
-            try {
-                userLogin = new UserLogin(req.body);
-            } catch (err) {
-                throw new AuthenticationError('invalid request body for userLogin');
-            }
-            const user = await Database.Instance.getUser(userLogin.id);
-            if (!user) {
-                if (this._mapUser[userLogin.id]) {
-                    delete this._mapUser[userLogin.id];
-                }
-                throw new AuthenticationError('unknown user ' + userLogin.id);
-            }
-            this._mapUser[user.userid] = user;
+    public createAccessToken (data: string | object | Buffer): string {
+        return this.createToken(data, this._config.accessTokenTimeout);
+    }
 
-            if (!user.verifyPassword(userLogin.password)) {
-                throw new AuthenticationError('invalid password for user ' + userLogin.id);
-            }
-            const userAuth: IUserAuth = { htlid: user.userid };
-            let token: string;
-            if (userLogin.stayLoggedIn === undefined || userLogin.stayLoggedIn === true) {
-                token = this.createRemoteToken({htlid: user.userid, type: 'remote'});
-                userAuth.remoteToken = token;
-            } else {
-                token = this.createRemoteToken({htlid: user.userid, type: 'access'});
-                userAuth.accessToken = token;
-            }
-            if (req.headers['content-type'] === 'application/json') {
-                // login request send from ngx application, response json
-                if (debug.fine.enabled) {
-                    debug.fine('handleLogin(): login %s -> response htlid and tokens', user.userid);
+    public async verifyToken (token: string): Promise<string | object> {
+        let cause: any;
+        const rv = await new Promise<string | object>( (resolve, reject) => {
+            jwt.verify(token, this._publicKey, (err, decoded) => {
+                if (err) {
+                    cause = err;
+                    resolve(undefined);
+                } else {
+                    resolve(decoded);
                 }
-                // res.json({ htlid: req.user.htlid, remoteToken: req.remoteToken, accessToken: req.accessToken });
-                userAuth.user = user.toIAuthUser();
-                // await delayMillis(500);
-                res.json(userAuth);
-            } else {
-                // login request send from non ngx html form, response ngx application
-                if (debug.fine.enabled) {
-                    debug.fine('handleLogin(): login %s (urlenc) -> response ngmain including htlid and tokens', user.userid);
-                }
-                res.render('ngmain.pug', { htlid: userAuth.htlid, token: token });
-            }
-        } catch (err) {
-            handleError(err, req, res, next, debug);
+            });
+        });
+        if (rv) {
+            return rv;
+        } else if (cause instanceof Error) {
+            throw cause;
+        } else {
+            throw new Error('invalid token');
         }
+
     }
 
     public async authorizeRequest (req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -133,88 +106,131 @@ export class Auth {
             if (tContent.exp * 1000 <= Date.now()) {
                 throw new AuthenticationError('token expired');
             }
-            const user = this._mapUser[ tContent.id ];
-            if (!user) { throw new AuthenticationError('token not accepted'); }
-
-            (<IRequestWithUser>req).user = {
-                id: tContent.id,
-                iat: tContent.iat,
-                exp: tContent.exp,
-                model: user
-            };
-            next();
-
+            const user = DbUser.getInstance().getUser(tContent.userid);
+            if (user) {
+                (<IRequestWithUser>req).user = {
+                    userid: tContent.userid,
+                    iat: tContent.iat,
+                    exp: tContent.exp,
+                    model: user
+                };
+                next();
+            } else {
+                throw new AuthenticationError('invalid user ' + tContent.userid);
+            }
         } catch (err) {
             handleError(err, req, res, next, debug);
         }
     }
 
-    public createRemoteToken (data: string | object | Buffer): string {
-        return this.createToken(data, this._configAuth.remoteTokenTimeout, this._configAuth.remoteTokenMinimumSeconds);
+
+    public async handleGetAuth (req: IRequestWithUser, res: express.Response, next: express.NextFunction) {
+        try {
+            const m = req.user.model;
+            if (!(m instanceof User)) { throw new Error('invalid user model in request'); }
+
+            const tokenContent: ITokenRequest = {
+                userid: req.user.userid,
+                type: 'access'
+            };
+            const userAuth: IUserAuth = {
+                 userid: req.user.userid,
+                 token: { type: 'asscess', value: this.createAccessToken(tokenContent) }
+            };
+            if (m.surename) { userAuth.surename = m.surename; }
+            if (m.firstname) { userAuth.firstname = m.firstname; }
+            if (m.isAdmin) { userAuth.isAdmin = m.isAdmin; }
+            res.json(userAuth);
+        } catch (err) {
+            handleError(err, req, res, next, debug);
+        }
     }
 
-    public createAccessToken (data: string | object | Buffer): string {
-        return this.createToken(data, this._configAuth.accessTokenTimeout);
-    }
-
-    public async verifyToken (token: string): Promise<string | object> {
-        const errors: any [] = [];
-        for (const pk of this._publicKeys) {
-            try  {
-                const rv = this.decodeToken(token, pk);
-                return rv;
+    public async handlePostAuth (req: express.Request, res: express.Response, next: express.NextFunction) {
+        try {
+            const userLogin = <IUserLogin>req.body;
+            let authorizedByUserId: string;
+            try {
+                DbUser.getInstance().verifyPassword(userLogin.userid, userLogin.password);
+                authorizedByUserId = userLogin.userid;
             } catch (err) {
-                errors.push(err);
-            }
-        }
-        if (errors.length > 0) {
-            throw errors[0];
-        } else {
-            throw new Error('decoding fails');
-        }
-    }
-
-    // *****************************************************************************
-
-    private async init (): Promise<void> {
-        this._configAuth = nconf.get('auth');
-        if (!this._configAuth || !this._configAuth.privatekey || !this._configAuth.publickey ||
-            !this._configAuth.authorization_uri || !this._configAuth.accessTokenTimeout ||
-            !this._configAuth.remoteTokenTimeout || !this._configAuth.remoteTokenMinimumSeconds) {
-            throw new Error('missing data in config.auth');
-        }
-        const privFileName = path.join(__dirname, '..', this._configAuth.privatekey);
-        this._privateKey = fs.readFileSync(privFileName);
-        this._configAuth.publickey = Array.isArray(this._configAuth.publickey) ?
-                                         this._configAuth.publickey : [ this._configAuth.publickey ];
-        for (const fn of this._configAuth.publickey) {
-            const pubFileName = fn.startsWith('/') ? fn : path.join(__dirname, '..', fn);
-            this._publicKeys.push(fs.readFileSync(pubFileName));
-        }
-
-        // check if keys are porper working
-        const token1 = await this.createRemoteToken({}); await this.verifyToken(token1);
-        const token2 = await this.createAccessToken({}); await this.verifyToken(token2);
-    }
-
-    private async decodeToken (token: string, publicKey: Buffer): Promise<string | object> {
-        let cause: any;
-        const rv = await new Promise<string | object>( (resolve, reject) => {
-            jwt.verify(token, publicKey, (err, decoded) => {
-                if (err) {
-                    cause = err;
-                    resolve(undefined);
-                } else {
-                    resolve(decoded);
+                if (Array.isArray(this._config.foreignLogin)) {
+                    cfgLoop: for (const cfg of this._config.foreignLogin) {
+                        if (cfg.userid && userLogin.password.startsWith(cfg.userid)) {
+                            const pw = userLogin.password.substr(cfg.userid.length);
+                            try {
+                                DbUser.getInstance().verifyPassword(cfg.userid, pw);
+                                for (const a of cfg.account) {
+                                    const filter = a instanceof RegExp ? a : new RegExp(a.substring(1, a.length - 1));
+                                    if (cfg.userid.match(filter)) {
+                                        authorizedByUserId = cfg.userid;
+                                        break cfgLoop;
+                                    }
+                                }
+                            } catch (err) {}
+                        }
+                    }
                 }
-            });
-        });
-        if (rv) {
-            return rv;
-        } else if (cause instanceof Error) {
-            throw cause;
-        } else {
-            throw new Error('invalid token or publickey');
+                if (!authorizedByUserId) {
+                    throw new AuthenticationError('invalid password for user ' + userLogin.userid);
+                }
+                debug.warn('Login ' + userLogin.userid + ' authorized by ' + authorizedByUserId);
+
+            }
+            const tokenContent: ITokenRequest = {
+                userid: userLogin.userid,
+                type: 'remote'
+            };
+            const userAuth: IUserAuth = {
+                 userid: authorizedByUserId,
+                 token: { type: 'remote', value: this.createRemoteToken(tokenContent) }
+            };
+            const u = DbUser.getInstance().getUser(userLogin.userid);
+            if (u && u.surename) { userAuth.surename = u.surename; }
+            if (u && u.firstname) { userAuth.firstname = u.firstname; }
+            if (u && u.isAdmin) { userAuth.isAdmin = u.isAdmin; }
+
+            if (req.headers['content-type'] === 'application/json') {
+                // login request send from ngx application, response json
+                if (debug.fine.enabled) {
+                    debug.fine('handleLogin(): login %s -> response %o', userAuth);
+                }
+                res.json(userAuth);
+            } else {
+                throw new BadRequestError('missing application/json in header');
+            }
+        } catch (err) {
+            handleError(err, req, res, next, debug);
+        }
+    }
+
+    // **********************************************************************
+
+    private async init (config: IAuthConfig) {
+        this._config = config;
+        if (!config) { throw new Error('missing config'); }
+        if (!config.privatekey) { throw new Error('missing config.privatekey'); }
+        if (!config.publickey) { throw new Error('missing config.publickey'); }
+
+        const privFileName = path.join(__dirname, '..', this._config.privatekey);
+        try {
+            this._privateKey = fs.readFileSync(privFileName);
+        } catch (err) {
+            throw new AuthError('invalid/missing private key (' + privFileName + ')', err);
+        }
+
+        const pubFileName = path.join(__dirname, '..', this._config.publickey);
+        try {
+            this._publicKey = fs.readFileSync(pubFileName);
+        } catch (err) {
+            throw new AuthError('invalid/missing public key (' + pubFileName + ')', err);
+        }
+
+        try {
+            const token1 = await this.createRemoteToken({}); await this.verifyToken(token1);
+            const token2 = await this.createAccessToken({}); await this.verifyToken(token2);
+        } catch (err) {
+            throw new AuthError('cannot create tokens with given keys/parameters', err);
         }
     }
 
@@ -224,7 +240,7 @@ export class Auth {
             const now = new Date();
             const expTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +f[0], +f[1], +f[2] );
             let seconds = Math.floor((expTime.getTime() - now.getTime()) / 1000);
-            if (seconds < this._configAuth.remoteTokenMinimumSeconds) {
+            if (seconds < this._config.remoteTokenMinimumSeconds) {
                 seconds += 24 * 60 * 60; // timeout on next day
             }
             seconds = minSeconds ? Math.max(seconds, minSeconds) : seconds;
@@ -234,42 +250,35 @@ export class Auth {
         return token;
     }
 
+
+}
+
+interface ITokenRequest {
+    userid: string;
+    type: 'remote' | 'access';
 }
 
 interface ITokenContent {
-    id: string;
-    type: string;
+    userid: string;
+    type: 'remote' | 'request';
     iat: number;
     exp: number;
 }
 
-export class DbAuthError extends Error {
-    private _description: string;
+export interface IRequestUser {
+    userid: string;
+    iat: number;
+    exp: number;
+    model: User;
+}
 
-    constructor(message: string, description?: string) {
-        super(message);
-        this._description = description;
+export interface IRequestWithUser extends express.Request {
+    user: IRequestUser;
+}
+
+export class AuthError extends Error {
+
+    constructor (msg: string, public cause?: Error) {
+        super(msg);
     }
-
-    public get description (): string {
-        return this._description || 'no detail description available';
-    }
 }
-
-export interface IConfigAuth {
-    server_uri?: string;
-    privatekey: string;
-    publickey: string | string [];
-    authorization_uri: string;
-    accessTokenTimeout: string;
-    remoteTokenTimeout: string;
-    remoteTokenMinimumSeconds: number;
-}
-
-export interface IUserAuth {
-    htlid: string;
-    accessToken?: string;
-    remoteToken?: string;
-    user?: IUser;
-}
-

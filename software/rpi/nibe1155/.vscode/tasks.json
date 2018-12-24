@@ -3,7 +3,7 @@
     "tasks": [
         {
             "label": "build",
-            "command": "server/node_modules/gulp4/bin/gulp.js",
+            "command": "server/node_modules/gulp/bin/gulp.js",
             "type": "shell",
             "args": [
                 "--gulpfile",
@@ -34,7 +34,7 @@
         },
         {
             "label": "clean",
-            "command": "server/node_modules/gulp4/bin/gulp.js",
+            "command": "server/node_modules/gulp/bin/gulp.js",
             "type": "shell",
             "args": [
                 "--gulpfile",
@@ -48,7 +48,7 @@
         },
         {
             "label": "cleanAndBuild",
-            "command": "server/node_modules/gulp4/bin/gulp.js",
+            "command": "server/node_modules/gulp/bin/gulp.js",
             "type": "shell",
             "args": [
                 "--gulpfile",
@@ -64,8 +64,42 @@
             ]
         },
         {
+            "label": "buildAndCopyToRemote",
+            "command": "server/node_modules/gulp/bin/gulp.js",
+            "type": "shell",
+            "args": [
+                "--gulpfile",
+                "server/gulpfile.js",
+                "buildAndCopyToRemote"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [
+                {
+                    "owner": "gulp-typescript",
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceRoot}"
+                    ],
+                    "pattern": {
+                        "regexp": "(.*)\\((\\d*),(\\d*)\\): (error|warning) (.*)",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                }
+            ]
+        },
+        {
             "label": "buildAndLaunchOnRemote",
-            "command": "server/node_modules/gulp4/bin/gulp.js",
+            "command": "server/node_modules/gulp/bin/gulp.js",
             "type": "shell",
             "args": [
                 "--gulpfile",

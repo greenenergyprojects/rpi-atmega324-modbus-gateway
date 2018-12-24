@@ -1,0 +1,16 @@
+<div>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Wert</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let r of show">
+                <td>{{r.name}}</td>
+                <td [style.color]="r.color ? r.color : black" >{{r.value}}</td>
+            </tr>
+        </tbody>  
+    </table>
+</div>

@@ -5,15 +5,6 @@
             "baudRate": 115200
         }
     },
-    "statistics": {
-	"disabled": false,
-	"timeslotSeconds": 60,
-	"tmpFile": "/var/log/fronius/.tmpnibe1155",
-        "dbtyp": "csvfile",
-	"csvfile": {
-            "filename": "/var/log/fronius/nibe1155-data_%Y-%M-%D.csv"
-        }
-    },
     "server": {
         "start": true,
         "port": 8080,
@@ -22,6 +13,29 @@
             "config": "tiny"
          },
          "pin": "1234"
+    },
+    "auth": {
+        "privatekey": "../keys/server-key.pem",
+        "publickey": "../keys/server-pubkey.pem",
+        "authorizationUri": "/auth",
+        "accessTokenTimeout": "5m",
+        "remoteTokenTimeout": "23:59:59",
+        "remoteTokenMinimumSeconds": 60
+    },
+    "database-users": {
+        "users": [{
+            "userid": "test",
+            "password": "geheim"
+        }]
+    },
+    "statistics": {
+	"disabled": false,
+	"timeslotSeconds": 60,
+	"tmpFile": "/var/log/fronius/.tmpnibe1155",
+        "dbtyp": "csvfile",
+	"csvfile": {
+            "filename": "/var/log/fronius/nibe1155-data_%Y-%M-%D.csv"
+        }
     },
     "debug": {
         "depth": 3,
@@ -35,4 +49,3 @@
     }
 
 }
-

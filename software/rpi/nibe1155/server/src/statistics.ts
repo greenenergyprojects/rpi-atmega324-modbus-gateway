@@ -4,8 +4,9 @@ const debug: debugsx.IFullLogger = debugsx.createFullLogger('statistics');
 import * as fs from 'fs';
 import { sprintf } from 'sprintf-js';
 import * as nconf from 'nconf';
-import { Nibe1155MonitorRecord } from './client/nibe1155-monitor-record';
-import { Nibe1155Modbus } from './devices/nibe1155-modbus';
+import { Nibe1155MonitorRecord } from './data/common/nibe1155/nibe1155-monitor-record';
+import { Nibe1155ModbusRegisters, Nibe1155ModbusIds } from './data/common/nibe1155/nibe1155-modbus-registers';
+
 
 interface IStatisticsConfig {
     disabled?: boolean;
@@ -79,7 +80,7 @@ export class Statistics {
         , { id: 'stopTempAddHeating',     label: 't-stop-heizenElektr/°C', isSingleValue: true }
     ];
 
-    public static get Instance (): Statistics {
+    public static getInstance (): Statistics {
         if (!this._instance) { throw new Error('instance not created'); }
         return this._instance;
     }
@@ -383,25 +384,25 @@ class StatisticsRecordFactory extends StatisticsRecord {
 
             switch (h.id) {
                 // case 'outdoorTemp':         this.handleValue(v, this._valueCount, r.outdoorTemp); break;
-                case 'calcSupplyTemp':      this.handleValue(v, this._valueCount, r.calcSupplyTemp); break;
-                case 'supplyTemp':          this.handleValue(v, this._valueCount, r.supplyTemp); break;
-                case 'degreeMinutes':       this.handleValue(v, this._valueCount, r.degreeMinutes); break;
-                case 'brinePumpSpeed':      this.handleValue(v, this._valueCount, r.brinePumpSpeed); break;
-                case 'supplyPumpSpeed':     this.handleValue(v, this._valueCount, r.supplyPumpSpeed); break;
-                case 'compressorFrequency': this.handleValue(v, this._valueCount, r.compressorFrequency); break;
-                case 'compressorInPower':   this.handleValue(v, this._valueCount, r.compressorInPower); break;
-                case 'electricHeaterPower': this.handleValue(v, this._valueCount, r.electricHeaterPower); break;
-                case 'supplyS1Temp':        this.handleValue(v, this._valueCount, r.supplyS1Temp); break;
-                case 'supplyReturnTemp':    this.handleValue(v, this._valueCount, r.supplyReturnTemp); break;
-                case 'brineInTemp':         this.handleValue(v, this._valueCount, r.brineInTemp); break;
-                case 'brineOutTemp':        this.handleValue(v, this._valueCount, r.brineOutTemp); break;
-                case 'condensorOutTemp':    this.handleValue(v, this._valueCount, r.condensorOutTemp); break;
-                case 'hotGasTemp':          this.handleValue(v, this._valueCount, r.hotGasTemp); break;
-                case 'liquidLineTemp':      this.handleValue(v, this._valueCount, r.liquidLineTemp); break;
-                case 'suctionTemp':         this.handleValue(v, this._valueCount, r.liquidLineTemp); break;
-                case 'compressorState':     this.handleValue(v, this._valueCount, r.compressorState); break;
-                case 'supplyPumpState':     this.handleValue(v, this._valueCount, r.supplyPumpState); break;
-                case 'brinePumpState':      this.handleValue(v, this._valueCount, r.brinePumpState); break;
+                case 'calcSupplyTemp':      this.handleValue(v, this._valueCount, r.calcSupplyTemp.value); break;
+                case 'supplyTemp':          this.handleValue(v, this._valueCount, r.supplyTemp.value); break;
+                case 'degreeMinutes':       this.handleValue(v, this._valueCount, r.degreeMinutes.value); break;
+                case 'brinePumpSpeed':      this.handleValue(v, this._valueCount, r.brinePumpSpeed.value); break;
+                case 'supplyPumpSpeed':     this.handleValue(v, this._valueCount, r.supplyPumpSpeed.value); break;
+                case 'compressorFrequency': this.handleValue(v, this._valueCount, r.compressorFrequency.value); break;
+                case 'compressorInPower':   this.handleValue(v, this._valueCount, r.compressorInPower.value); break;
+                case 'electricHeaterPower': this.handleValue(v, this._valueCount, r.electricHeaterPower.value); break;
+                case 'supplyS1Temp':        this.handleValue(v, this._valueCount, r.supplyS1Temp.value); break;
+                case 'supplyReturnTemp':    this.handleValue(v, this._valueCount, r.supplyS1ReturnTemp.value); break;
+                case 'brineInTemp':         this.handleValue(v, this._valueCount, r.brineInTemp.value); break;
+                case 'brineOutTemp':        this.handleValue(v, this._valueCount, r.brineOutTemp.value); break;
+                case 'condensorOutTemp':    this.handleValue(v, this._valueCount, r.condensorOutTemp.value); break;
+                case 'hotGasTemp':          this.handleValue(v, this._valueCount, r.hotGasTemp.value); break;
+                case 'liquidLineTemp':      this.handleValue(v, this._valueCount, r.liquidLineTemp.value); break;
+                case 'suctionTemp':         this.handleValue(v, this._valueCount, r.liquidLineTemp.value); break;
+                case 'compressorState':     this.handleValue(v, this._valueCount, r.compressorState.value); break;
+                case 'supplyPumpState':     this.handleValue(v, this._valueCount, r.supplyPumpState.value); break;
+                case 'brinePumpState':      this.handleValue(v, this._valueCount, r.brinePumpState.value); break;
                 default: debug.warn('unsupported id %s for addMonitorRecord()', h.id); break;
             }
         }
@@ -470,10 +471,10 @@ class StatisticsRecordFactory extends StatisticsRecord {
                     s += sprintf('"0",""'); // no value available
                 } else {
                     const at = v.at instanceof Date ? v.at : new Date(v.at);
-                    const x = (<any>Nibe1155Modbus.regDefByLable)[h.id];
+                    const d = (<any>Nibe1155ModbusRegisters.regDefByLabel)[<Nibe1155ModbusIds>+h.id];
                     let sv: string;
-                    if (x) {
-                        sv = sprintf(x.format, v.value).trim();
+                    if (d) {
+                        sv = sprintf(d.format, v.value).trim();
                     } else {
                         sv = sprintf('%.3f', v.value);
                     }

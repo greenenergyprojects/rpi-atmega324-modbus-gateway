@@ -9,16 +9,16 @@ import * as path from 'path';
 import * as express from 'express';
 
 import { handleError, RouterError, BadRequestError, AuthenticationError } from './router-error';
-import { Statistics } from '../statistics';
-import { INibe1155Values } from '../client/nibe1155-values';
+
 import { HeatPump } from '../devices/heat-pump';
 import { Nibe1155 } from '../devices/nibe1155';
-import { Nibe1155Value } from '../devices/nibe1155-value';
-
+import { Nibe1155Value } from '../data/common/nibe1155/nibe1155-value';
+import { INibe1155MonitorRecord, Nibe1155MonitorRecord } from '../data/common/nibe1155/nibe1155-monitor-record';
+import { Nibe1155ModbusIds } from '../data/common/nibe1155/nibe1155-modbus-registers';
 
 export class RouterData {
 
-    public static get Instance(): express.Router {
+    public static getInstance(): express.Router {
         if (!this._instance) {
             this._instance = new RouterData;
         }
@@ -79,29 +79,13 @@ export class RouterData {
                 }
             }
             const n = Nibe1155.Instance;
-            const rv: INibe1155Values = {
-                controller: req.query.controller && req.query.controller === 'false' ? undefined : HeatPump.Instance.toObject(),
-                // monitor: statistics.latest.toObject(),
-                // others: {}
-                simpleValues: req.query.simpleValues && req.query.simpleValues === 'false' ? undefined : {},
-                completeValues: req.query.completeValues && req.query.completeValues === 'false' ? undefined : {},
-                logsetIds: req.query.logsetIds && req.query.logsetIds === 'false' ? undefined : n.logsetIds
-            };
             const values = n.values;
-            for (const id in values) {
-                if (!values.hasOwnProperty(id)) { continue; }
-                const x = values[id];
-                if (ids.length > 0 && !ids.find( (i) => i === x.id)) { continue; }
-                if (!(x instanceof Nibe1155Value)) { continue; }
-                if (rv.completeValues) {
-                    rv.completeValues[id] = x.toObject();
-                }
-                if (rv.simpleValues) {
-                    rv.simpleValues[id] = {
-                        rawValue: x.rawValue,
-                        rawValueAt: x.valueAt ? x.valueAt.getTime() : null
-                    };
-                }
+            const rv: INibe1155MonitorRecord = {};
+            if (req.query.controller) { rv.controller = HeatPump.Instance.toObject(); }
+            if (req.query.logsetIds) { rv.logsetIds = n.logsetIds; }
+            for (const id of ids) {
+                const v = values[id];
+                rv.values[<Nibe1155ModbusIds>id] = v instanceof Nibe1155Value ? v.toObject() : null;
             }
             debug.fine('query %o -> response: %o', req.query, rv);
             res.json(rv);

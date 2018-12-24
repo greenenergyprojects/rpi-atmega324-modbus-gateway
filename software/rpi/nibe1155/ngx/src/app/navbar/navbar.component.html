@@ -1,0 +1,28 @@
+<nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+    <a class="navbar-brand" href="#">Home Control</a>
+    <button class="navbar-toggler" type="button" (click)="isCollapsed = !isCollapsed">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="navbar-collapse" id="navbarSupportedContent" [ngbCollapse]="isCollapsed">
+        <ul class="navbar-nav mr-auto">
+            <li class="nav-item">
+                <a class="nav-link" routerLink="app/overview" routerLinkActive="active">Überblick</a>
+            </li>
+            <!-- <li class="nav-item">
+                <a class="nav-link" routerLink="app/grid" routerLinkActive="active">Netz Ein/Aus</a>
+            </li> -->
+            <!-- <li class="nav-item">
+                <a class="nav-link" routerLink="app/froniusmeter" routerLinkActive="active">Froniusmeter</a>
+            </li> -->
+            <li class="nav-item">
+                <a class="nav-link" routerLink="app/boiler" routerLinkActive="active">Boiler</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" routerLink="app/froniussymo" routerLinkActive="active">Fronius-Symo</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" routerLink="app/nibe1155" routerLinkActive="active">Wärmepumpe</a>
+            </li>
+        </ul>
+    </div>
+</nav>

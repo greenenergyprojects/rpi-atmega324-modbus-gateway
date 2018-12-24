@@ -4,7 +4,6 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
         {
             "type": "node",
             "request": "launch",
@@ -20,63 +19,42 @@
             "outputCapture": "console"
         },
         {
+            "name": "Launch on RPI",
+            "address": "pi-nibe1155",
+            "remoteRoot": "/home/pi/rpi/nibe1155/server/",
+            "smartStep": true,
+            "stopOnEntry": false,
             "type": "node",
             "request": "attach",
-            "name": "Launch on RPI",
-            //// "cwd": "${workspaceRoot}/dist",
-            ////"trace": "all",
+            // "cwd": "${workspaceRoot}/dist",
             // "outFiles": [ "${workspaceRoot}/dist/*.js" ],
+            // "trace": "all",
+            "trace": false,
             "sourceMaps": true,
             "preLaunchTask": "buildAndLaunchOnRemote",
-            "smartStep": true,
-            "stopOnEntry": false,
             "port": 9229,
-            "address": "rpi",
             "restart": false,
-            "localRoot": "${workspaceRoot}/server",
-            "remoteRoot": "/home/pi/nibe1155/server",
-            "internalConsoleOptions": "openOnSessionStart",
-            "trace": false
+            "localRoot": "${workspaceRoot}/server/",
+            "internalConsoleOptions": "openOnSessionStart"
         },
         {
-            "type": "node",
-            "request": "attach",
-            "name": "Attach on RPI",
-            //// "cwd": "${workspaceRoot}/dist",
-            ////"trace": "all",
-            // "outFiles": [ "${workspaceRoot}/dist/*.js" ],
-            "sourceMaps": true,
+            "name": "Build/Copy/Attach to RPI",
+            "address": "pi-nibe1155",
+            "remoteRoot": "/home/pi/rpi/nibe1155/server/",
             "smartStep": true,
             "stopOnEntry": false,
+            "type": "node",
+            "request": "attach",
+            // "cwd": "${workspaceRoot}/dist",
+            // "outFiles": [ "${workspaceRoot}/dist/*.js" ],
+            // "trace": "all",
+            "trace": false,
+            "sourceMaps": true,
+            "preLaunchTask": "buildAndCopyToRemote",
             "port": 9229,
-            "address": "rpi",
             "restart": false,
-            "localRoot": "${workspaceRoot}/server",
-            "remoteRoot": "/home/pi/nibe1155/server",
-            "internalConsoleOptions": "openOnSessionStart",
-            "trace": false
+            "localRoot": "${workspaceRoot}/",
+            "internalConsoleOptions": "openOnSessionStart"
         }
     ]
-
-    
-    
-    // "configurations": [
-    //     {
-    //         "name": "Attach",
-    //         "type": "node",
-    //         "request": "attach",
-    //         // "trace": true,
-    //         "stopOnEntry": false,
-    //         "port": 9229,
-    //         "address": "rpi",
-    //         "restart": false,
-    //         "localRoot": "${workspaceRoot}/server",
-    //         "remoteRoot": "/home/pi/egoHeater/server",
-    //         "sourceMaps": true,
-    //         // "program": "${workspaceRoot}/server/src/main.ts",
-    //         "smartStep": true
-            
-    //     }
-    //]
 }
-

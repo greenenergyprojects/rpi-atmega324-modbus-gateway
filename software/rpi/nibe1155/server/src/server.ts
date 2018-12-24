@@ -11,15 +11,18 @@ import * as cors from 'cors';
 import * as morgan from 'morgan';
 import * as express from 'express';
 import * as bodyParser from 'body-parser';
-import * as jwt from 'jsonwebtoken';
 
+import { VERSION } from './main';
 import { handleError, RouterError, BadRequestError, AuthenticationError, NotFoundError } from './routers/router-error';
-import { Auth } from './auth';
-import { IUser, User } from './db/user';
+import { Auth, AuthError } from './auth';
+import { IUserAuth } from './data/common/server/user';
+import { DbUser } from './db-user';
+import { IServerVersion } from './data/common/server/server-version';
 
 import { RouterData } from './routers/router-data';
 import { RouterModbus } from './routers/router-modbus';
 import { RouterNibe } from './routers/router-nibe';
+import { Router } from './routers/router';
 
 interface IServerConfig {
     start: boolean;
@@ -33,16 +36,18 @@ interface IServerConfig {
 
 export class Server {
 
-    private static _instance: Server;
-
-    public static get Instance (): Server {
+    public static getInstance (): Server {
         if (Server._instance === undefined) {
             Server._instance = new Server();
         }
         return Server._instance;
     }
 
+    private static _instance: Server;
+
     // ************************************************
+
+
 
     private _express: express.Express;
     private _config: IServerConfig;
@@ -77,22 +82,23 @@ export class Server {
         this._express.use(bodyParser.json());
         this._express.use(bodyParser.urlencoded({ extended: true }) );
 
-        this._express.post('/auth', (req, res, next) => Auth.Instance.handlePostAuth(req, res, next));
+        this._express.use('/version', (req, res, next) => this.handleVersion(req, res, next));
+        this._express.post('/auth', (req, res, next) => Auth.getInstance().handlePostAuth(req, res, next));
 
-        this._express.use('/data', RouterData.Instance);
-        this._express.use('/modbus', RouterModbus.Instance);
-        this._express.use('/nibe', RouterNibe.Instance);
         this._express.use('/node_modules', express.static(path.join(__dirname, '../node_modules')));
+        // this._express.all('/*', (req, res, next) => this.handleAll(req, res, next));
+        this._express.get('/*', (req, res, next) => this.handleGet(req, res, next));
+        this._express.use((req, res, next) => Auth.getInstance().authorizeRequest(req, res, next));
+        this._express.get('/auth', (req, res, next) => Auth.getInstance().handleGetAuth(<any>req, res, next));
+        this._express.use('/data', RouterData.getInstance());
+        this._express.use('/modbus', RouterModbus.getInstance());
+        this._express.use('/nibe', RouterNibe.getInstance());
+        this._express.use('/', Router.getInstance());
+
         this._express.use('/ngx', express.static(path.join(__dirname, '../../ngx/dist')));
         this._express.use('/assets', express.static(path.join(__dirname, '../../ngx/dist/assets')));
-        // this._express.use('/res', RouterRes.routerInstance);
 
-        this._express.get('/*', (req, res, next) => this.handleGet(req, res, next));
-        this._express.use((req, res, next) => Auth.Instance.authorizeRequest(req, res, next));
-        this._express.get('/auth', (req, res, next) => Auth.Instance.handleGetAuth(<any>req, res, next));
-        this._express.get('/test', (req, res, next) => this.handleGetTest(<any>req, res, next));
-        // this._express.use('/data', RouterData.Instance);
-
+        this._express.all('*', (req, res, next) => this.handleNotFound(req, res, next));
         this._express.use(
             (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => this.errorHandler(err, req, res, next)
         );
@@ -117,7 +123,18 @@ export class Server {
         return typeof this._config.pin === 'string' && this._config.pin.length === 4 && this._config.pin === pin;
     }
 
+    private handleNotFound (req: express.Request, res: express.Response, next: express.NextFunction) {
+        handleError(new NotFoundError(req.path), req, res, next, debug);
+    }
+
     private errorHandler (err: any, req: express.Request, res: express.Response, next: express.NextFunction) {
+
+        if (err instanceof AuthError) {
+            debug.warn('--> auth error');
+            res.status(400).end();
+            return;
+        }
+
         const now = new Date();
         const ts = now.toISOString();
         debug.warn('Internal Server Error: %s\n%e', ts, err);
@@ -128,9 +145,35 @@ export class Server {
         }
     }
 
+    private async handleVersion (req: express.Request, res: express.Response, next: express.NextFunction) {
+        try {
+            const a = req.socket.address();
+            let remoteToken;
+            const user = DbUser.getInstance().getUser('test');
+            const rv: IServerVersion = {
+                name: 'Home Control',
+                version: VERSION
+            };
 
-    private handleGet (req: express.Request, res: express.Response,
-                       next: express.NextFunction) {
+            if (a.port === 8080 && a.address === '::1' && user) {
+                remoteToken = await Auth.getInstance().createRemoteToken({ userid: user.userid}) ;
+                const u: IUserAuth = {
+                    userid: user.userid,
+                    token: { type: 'remote', value: remoteToken }
+                };
+                if (user.surename) { u.surename = user.surename; }
+                if (user.firstname) { u.firstname = user.firstname; }
+                if (user.isAdmin) { u.isAdmin = user.isAdmin; }
+                rv.user = u;
+            }
+            res.json(rv);
+
+        } catch (err) {
+            handleError(err, req, res, next, debug);
+        }
+    }
+
+    private handleGet (req: express.Request, res: express.Response, next: express.NextFunction) {
         debug.info(req.url);
 
         if (req.url === '/' || req.url === '/index.html' || req.url.startsWith('/app') ) {
@@ -139,20 +182,12 @@ export class Server {
             return;
         }
         if (req.url === '/favicon.ico') {
-            const fileName = path.join(__dirname, '..', 'dist/public/favicon.ico');
+            const fileName = path.join(__dirname, '..', 'assets/public/favicon.ico');
+            console.log(fileName);
             debug.info(fileName);
             res.sendFile(fileName);
             return;
         }
-        // if (req.url.startsWith('/ngx/')) {
-        //     if (req.url === '/ngx/vendor.bundle.js') {
-        //         debug.fine('/ngx/vendor.bundle.js not avilable, send empty response');
-        //         res.end();
-        //         return;
-        //     }
-        //     handleError(new NotFoundError(req.url + 'not found'), req, res, next, debug);
-        //     return;
-        // }
 
         let fn = path.join(__dirname, '../../ngx/dist/ngx/', req.url);
         try {
@@ -169,33 +204,4 @@ export class Server {
         next();
     }
 
-
-    private async handleGetTest (req: IAuthorizedRequest, res: express.Response, next: express.NextFunction) {
-        try {
-            res.json({});
-            // throw new Error('Testerror');
-            // throw new BadRequestError('Test', new Error('Cause'));
-            // throw new NotFoundError('Test');
-        } catch (err) {
-            handleError(err, req, res, next, debug);
-        }
-    }
-
-
 }
-
-export interface IRequestUser {
-    id: string;
-    iat: number;
-    exp: number;
-    model: User;
-}
-
-export interface IRequestWithUser extends express.Request {
-    user: IRequestUser;
-}
-
-interface IAuthorizedRequest extends express.Request {
-    user: User;
-}
-

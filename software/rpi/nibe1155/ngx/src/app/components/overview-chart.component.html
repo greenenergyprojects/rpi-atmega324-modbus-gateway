@@ -1,0 +1,21 @@
+<div>
+    <div style="display: block">
+        <canvas baseChart
+                [datasets]="chartData"
+                [labels]="chartLabels"
+                [options]="chartOptions"
+                [legend]="chartLegend"
+                [chartType]="chartType"
+                [colors]="chartColors"
+                (chartHover)="chartHovered($event)"
+                (chartClick)="chartClicked($event)">
+        </canvas>
+    </div>
+    <div #container *ngIf="showValues" style="margin-bottom: 1em"> 
+        <span style="margin-right:2em" *ngFor="let x of showValues">
+            <strong>{{x.key}}:</strong>
+            <span style="margin-left: 0.5em">{{x.value}}</span>
+            <br *ngIf="x.br"/>
+        </span>
+    </div>
+</div>

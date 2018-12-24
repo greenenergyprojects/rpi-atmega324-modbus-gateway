@@ -1,4 +1,3 @@
-
 export interface IAuthUser {
     userid: string;
     surname?: string;
@@ -69,5 +68,3 @@ export class AuthUser implements IAuthUser {
     }
 
 }
-
-

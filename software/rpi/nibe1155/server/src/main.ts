@@ -1,12 +1,14 @@
 
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 
 import * as fs from 'fs';
 import * as path from 'path';
 
 import * as nconf from 'nconf';
 import { sprintf } from 'sprintf-js';
+
+import * as git from './utils/git';
 
 process.on('unhandledRejection', (reason, p) => {
     const now = new Date();
@@ -64,29 +66,31 @@ if (logfileConfig) {
 //   ... things to do before server can be started
 // ***********************************************************
 
+import { Server } from './server';
+import { Auth } from './auth';
+import { DbUser } from './db-user';
 import { ModbusSerial } from './modbus/modbus-serial';
-import { ModbusRequest, ModbusRequestFactory } from './modbus/modbus-request';
 import { Nibe1155 } from './devices/nibe1155';
 import { HeatPump } from './devices/heat-pump';
 import { Statistics } from './statistics';
-import { Server } from './server';
+
+import { HeatpumpControllerMode, Nibe1155Controller } from './data/common/nibe1155/nibe1155-controller';
 
 let modbus: ModbusSerial;
-const regTab: { [ id: number ]: IRegister } = {};
 
 doStartup();
 
 async function doHeatPumpControlling () {
     const hp = HeatPump.Instance;
-    await hp.start('off');
-    await hp.setDesiredMode( {
+    await hp.start(HeatpumpControllerMode.off);
+    await hp.setDesiredMode(new Nibe1155Controller({
         createdAt: new Date(),
-        desiredMode: 'economy',
+        desiredMode: HeatpumpControllerMode.off,
         fMin: 25,
         fMax: 50,
         tempMin: 35,
         tempMax: 45
-    });
+    }));
 
 
     // Nibe1155.Instance.setPointDegreeMinutes = -5;
@@ -121,25 +125,74 @@ async function doHeatPumpControlling () {
 
 async function doStartup () {
 
-    Statistics.createInstance(nconf.get('statistics'));
-    modbus = new ModbusSerial();
-    await modbus.open();
+    await delay(1000);
+    debug.info('Start of Home Control Server V' + VERSION);
     try {
-        await Nibe1155.createInstance(modbus);
-        await HeatPump.createInstance(Nibe1155.Instance);
-        await startupServer();
-    } catch (err) {
-        debug.warn(err);
-    }
-    doHeatPumpControlling();
+        if (nconf.get('git')) {
+            const gitInfo = await git.getGitInfo();
+            startupPrintVersion(gitInfo);
+        }
+        await startupParallel();
+        modbus = new ModbusSerial();
+        debug.info('try to open serial interface for Modbus-ASCII...');
+        await modbus.open();
+        try {
+            Statistics.createInstance(nconf.get('statistics'));
+            await Nibe1155.createInstance(modbus, nconf.get('nibe1155'));
+            await HeatPump.createInstance(Nibe1155.Instance);
+            await startupServer();
+            doHeatPumpControlling();
+        } catch (err) {
+            debug.warn(err);
+        }
+        debug.info('set SIGINT handler for CTRL+C');
+        process.on('SIGINT', () => {
+            console.log('...caught interrupt signal');
+            shutdown('interrupt signal (CTRL + C)').catch( (err) => {
+                console.log(err);
+                process.exit(1);
+            });
+        });
+        debug.info('startup finished, enter now normal running mode.');
 
-    return;
+    }  catch (err) {
+        console.log(err);
+        console.log('-----------------------------------------');
+        console.log('Error: exit program');
+        process.exit(1);
+    }
+}
+
+async function shutdown (src: string): Promise<void> {
+    debug.info('starting shutdown ... (caused by %s)', src || '?');
+    const shutdownMillis = +nconf.get('shutdownMillis');
+    const timer = setTimeout( () => {
+        console.log('Some jobs hanging? End program with exit code 1!');
+        process.exit(1);
+    }, shutdownMillis > 0 ? shutdownMillis : 500);
+    let rv = 0;
+
+    try { await Server.getInstance().stop(); } catch (err) { rv++; console.log(err); }
+    debug.fine('monitor shutdown done');
+
+    clearTimeout(timer);
+    debug.info('shutdown successfully finished');
+    process.exit(rv);
+}
+
+async function startupParallel (): Promise<any []> {
+    debug.info('startupParallel finished');
+    return [];
 }
 
 async function startupServer (): Promise<void> {
     const configServer = nconf.get('server');
+    const configAuth = nconf.get('auth');
+    const configUsers = nconf.get('database-users');
     if (configServer && configServer.start) {
-        await Server.Instance.start();
+        await DbUser.createInstance(configUsers);
+        await Auth.createInstance(configAuth);
+        await Server.getInstance().start();
     }
 }
 
@@ -151,14 +204,11 @@ async function delay (ms: number) {
     });
 }
 
-
-interface IRegister {
-    id: number;
-    logset: boolean;
-    unit: string;
-    size: 'u8' | 's8' | 'u16' | 's16' | 'u32' | 's32';
-    factor: 0.1 | 1 | 10 | 100;
-    mode: 'R' | 'R/W';
-    name: string;
-    help?: string;
+function startupPrintVersion (info?: git.GitInfo) {
+    console.log('main.ts Version ' + VERSION);
+    if (info) {
+        console.log('GIT: ' + info.branch + ' (' + info.hash + ')');
+        const cnt = info.modified.length;
+        console.log('     ' + (cnt === 0 ? 'No files modified' : cnt + ' files modified'));
+    }
 }

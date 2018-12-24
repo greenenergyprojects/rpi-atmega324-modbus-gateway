@@ -1,22 +1,22 @@
 {
-    "eslint.enable": false,
-    "files.exclude": {
-        "**/node_modules/": true,
-        "**/*.code-workspace": true,
-        "**/README.md": false,
-        "**/.sftp*": true,
-        "**/.gitkeep": true,
-        "**/dist": true,
-        "**/dist_remote": true,
-        "**/old": true,
-        ".vscode/": true,
-        "**/.gitignore": true,
-        "**/LICENSE": true,
-        "*.log": true,
-        "**/package-lock.json": true,
-        "**/package.json": true,
-        "**/gulpfile.js": true,
-        "**/tsconfig.json": true,
-        "**/tslint.json": true
-    }
+	"files.exclude": {
+		"**/node_modules": true,
+		"**/dist": true,
+		"**/dist_remote": true,
+		"**/.vscode": true,
+		"**/package-lock.json": true,
+		"**/tslint.json": true,
+		"**/tsconfig.json": true,
+		"**/gulpfile.js": true,
+		"**/*.code-workspace": true,
+		"**/.gitignore":true,
+		"**/e2e":true,
+                "**/*.spec.ts": true,
+                "**/.editorconfig": true,
+                "**/tsconfig.*": true,
+                "**/karma.conf.js": true,
+                "**/polyfills.ts": true,
+                "**/browserslist": true
+
+	}
 }

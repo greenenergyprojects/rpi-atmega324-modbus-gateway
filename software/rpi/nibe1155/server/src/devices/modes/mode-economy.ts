@@ -3,7 +3,7 @@ const debug: debugsx.IFullLogger = debugsx.createFullLogger('ModeEconomy');
 
 
 import { Nibe1155 } from '../nibe1155';
-import { IHeatpumpMode } from '../../client/nibe1155-values';
+import { INibe1155Controller } from '../../data/common/nibe1155/nibe1155-controller';
 import { sprintf } from 'sprintf-js';
 
 export class ModeEconomy {
@@ -42,7 +42,7 @@ export class ModeEconomy {
         this._fControllerKi = 0.01;
     }
 
-    public setParams (mode: IHeatpumpMode) {
+    public setParams (mode: INibe1155Controller) {
         this._fMin = this.limitNumber(mode.fMin, this._limits.f, this._limits.f.default);
         this._fMax = this.limitNumber(mode.fMax, this._limits.f, this._limits.f.default);
         if (this._fMin > this._fMax) {

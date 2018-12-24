@@ -10,15 +10,14 @@ import * as express from 'express';
 
 import { handleError, RouterError, BadRequestError, AuthenticationError } from './router-error';
 import { Nibe1155 } from '../devices/nibe1155';
-import { Nibe1155Modbus } from '../devices/nibe1155-modbus';
 import { HeatPump } from '../devices/heat-pump';
-import { IHeatpumpMode } from '../client/nibe1155-values';
 import { Server } from '../server';
+import { INibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
 
 
 export class RouterNibe {
 
-    public static get Instance(): express.Router {
+    public static getInstance(): express.Router {
         if (!this._instance) {
             this._instance = new RouterNibe;
         }
@@ -105,9 +104,9 @@ export class RouterNibe {
 
     private async postMode (req: express.Request, res: express.Response, next: express.NextFunction) {
         try {
-            const x: IHeatpumpMode = req.body;
+            const x: INibe1155Controller = req.body;
             if (!x || !x.createdAt || !x.desiredMode) { throw new BadRequestError('invalid body'); }
-            if (!x.pin || !Server.Instance.isPinOK(x.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
+            if (!x.pin || !Server.getInstance().isPinOK(x.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
             try {
                 delete x.pin;
                 const rv = await HeatPump.Instance.setDesiredMode(x);

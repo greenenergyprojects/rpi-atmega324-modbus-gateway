@@ -71,6 +71,7 @@ export class ModbusSerial {
                 reject: rej
             };
             const thiz = this;
+            debug.finest('set Timeout (modbusTimeout === false) ' + timeoutMillis + 'ms');
             x.timer = setTimeout( () => {
                 thiz.handleTimeout(x, false);
             }, timeoutMillis);
@@ -82,14 +83,17 @@ export class ModbusSerial {
     }
 
     private handleTimeout (r: IPendingRequest, modbusTimeout: boolean) {
-        if (r.timer && modbusTimeout) {
+        if (r.timer) {
             clearTimeout(r.timer);
-        }
-        r.timer = null;
-        if (r.timerModbus && !modbusTimeout) {
+            r.timer = null;
+            debug.finest('timeout (frame)\n%o', r);
+        } else if (r.timerModbus) {
             clearTimeout(r.timerModbus);
+            r.timerModbus = null;
+            debug.finest('timeout (modbus)\n%o', r);
+        } else {
+            debug.warn('call if handleTimeout(), but no time set in past');
         }
-        r.timerModbus = null;
 
         let err: ModbusRequestError;
         if (modbusTimeout) {
@@ -124,19 +128,22 @@ export class ModbusSerial {
     private write (r: IPendingRequest) {
         const thiz = this;
         process.nextTick( () => {
+            debug.finer('write->serial: %o', r.requ.request.frame);
             this._serialPort.write(r.requ.request.frame, (err) => {
                 if (err) {
                     this.handleError(r, new ModbusRequestError('serial interface error', err));
                 } else {
-                    if (debug.finest.enabled) {
-                        debug.finest('pending length = %s', this._pending.length);
-                        debug.finest('request written on serial interface (%o)', r.requ.request.buffer);
-                    }
+                    debug.finest('pending length = %s', this._pending.length);
+                    debug.fine('request written on serial interface (%o)', r.requ.request.buffer);
                     r.requ.sentAt = new Date();
+                    const toMillis =  r.requ.isLogSetRegister ? 500 + 300 : 2100 + 300;
+                    debug.finest('set Timeout (modbusTimeout) ' + toMillis + 'ms');
                     r.timerModbus = setTimeout( () => {
-                        debug.warn('Timeout %sms', Date.now() - r.requ.sentAt.getTime()) ;
+                        try {
+                            debug.warn('Timeout %sms (frame: %o)', Date.now() - r.requ.sentAt.getTime(), r.requ.request.frame);
+                        } catch (err) { debug.warn('Timeout\n%e', err); }
                         thiz.handleTimeout(r, true);
-                    }, r.requ.isLogSetRegister ? 500 + 300 : 2100 + 300);
+                    }, toMillis);
                 }
             });
         });
@@ -148,7 +155,7 @@ export class ModbusSerial {
     }
 
     private handleOnSerialData (data: Buffer) {
-
+        debug.finest('serial data: %o', data);
         if (!(data instanceof Buffer)) {
             debug.warn('serial input not as expected...');
             return;
@@ -167,8 +174,9 @@ export class ModbusSerial {
                     this._frame += c;
                 } else {
                     this._frame += c;
+                    debug.finer('receive frame: %o', this._frame);
                     if (debug.finest.enabled) {
-                        debug.finest('receive Modbus ASCII frame %s bytes', this._frame.length);
+                        debug.finer('receive Modbus ASCII frame %s bytes', this._frame.length);
                     }
                     let f: ModbusAsciiFrame;
                     let err: any;

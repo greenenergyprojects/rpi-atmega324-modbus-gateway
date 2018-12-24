@@ -1,0 +1,39 @@
+<div class="container">
+    <form (ngSubmit)="onSubmit()" #controlForm="ngForm">
+        <fieldset disabled>
+            <div class="form-group row">
+                <label class="col-sm-4 col-form-label">Aktueller Modus</label>
+                <div class="col-sm-8">
+                    <input type="text" id="disabledTextInput" class="form-control" placeholder="{{currentMode}}">
+                </div>
+            </div>
+        </fieldset>
+        <div class="form-group row">
+            <label for="idModeInput" class="col-sm-4 col-form-label">Modus</label>
+            <div class="col-sm-8">
+                <select class="custom-select" id="inlineFormCustomSelect"
+                        app-validator [element]="validatorMode" [(ngModel)]="validatorMode.value" name="mode">
+                    <option value='off' selected>OFF</option>
+                    <option value="frequency">ON (Frequenz)</option>
+                    <option value="economy">ON (Economy)</option>
+                    <!-- <option value="temperature">ON (Temperatur)</option> -->
+                    <option value="test">TEST</option>
+                </select>
+            </div>
+        </div>
+        <div *ngFor="let inp of inputs" class="form-group row" [hidden]='inp.hidden'>
+                <label class="col-sm-4 col-form-label" for="{{inp.id}}">{{inp.key}}</label>
+                <div class="col-sm-8">
+                    <input class="form-control" type="{{inp.type}}" pattern="{{inp.pattern}}" min="{{inp.min}}" max="{{inp.max}}" id="{{inp.id}}" required 
+                        app-validator [element]="inp.validator" [(ngModel)]="inp.validator.value" name="{{inp.name}}" inputmode="{{inp.mode">
+                    <!-- <input *ngIf="inp.type !== 'password'" class="form-control" type="{{inp.type}}" min="{{inp.min}}" max="{{inp.max}}" id="{{inp.id}}" required 
+                               app-validator [element]="inp.validator" [(ngModel)]="inp.validator.value" name="{{inp.name}}">
+                    <input *ngIf="inp.type === 'password'" class="form-control" type="{{inp.type}}" min="{{inp.min}}" max="{{inp.max}}" id="{{inp.id}}" required 
+                               app-validator [element]="inp.validator" [(ngModel)]="inp.validator.value" name="{{inp.name}}"> -->
+                </div>
+        </div>
+        <div class="form-group row">
+            <button type="submit" class="btn btn-primary" [disabled]="!controlForm.form.valid">Senden</button>
+        </div>
+    </form>
+</div>

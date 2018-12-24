@@ -9,22 +9,20 @@ import * as events from 'events';
 import { sprintf } from 'sprintf-js';
 
 import { Nibe1155Value, Nibe1155CompressorStateValue, Nibe1155PumpStateValue, Nibe1155AlarmValue,
-         Nibe1155PumpModeValue, Nibe1155OperationModeValue } from './nibe1155-value';
-import { Nibe1155Modbus, INibe1155 } from './nibe1155-modbus';
+         Nibe1155PumpModeValue, Nibe1155OperationModeValue } from '../data/common/nibe1155/nibe1155-value';
+import { Nibe1155ModbusRegisters, Nibe1155ModbusIds } from '../data/common/nibe1155/nibe1155-modbus-registers';
 import { ModbusSerial } from '../modbus/modbus-serial';
 import { ModbusRequest, ModbusRequestFactory } from '../modbus/modbus-request';
 import { ModbusAsciiFrame } from '../modbus/modbus-ascii-frame';
 import { Statistics } from '../statistics';
-import { Nibe1155MonitorRecord } from '../client/nibe1155-monitor-record';
-import { Value } from './value';
+import { Nibe1155MonitorRecord, INibe1155MonitorRecord } from '../data/common/nibe1155/nibe1155-monitor-record';
 
-// abstract class Nibe1155 extends { [ id in Nibe1155ModbusAttributes ]: Nibe1155Value } = {
+// import { Nibe1155Modbus, INibe1155 } from './nibe1155-modbus';
 
-// }
 
 export interface INibe1155Values {
     supplyS1Temp:        string;
-    supplyReturnTemp:    string;
+    supplyS1ReturnTemp:  string;
     brineInTemp:         string;
     brineOutTemp:        string;
     condensorOutTemp:    string;
@@ -96,15 +94,22 @@ export interface IExtendedNibe1155Values extends INibe1155Values {
 
 
 
-type Event = 'all' | keyof INibe1155;
+type Event = 'all' | keyof IExtendedNibe1155Values;
+
+export interface INibe1155Config {
+    logfile?: {
+        disabled?: boolean;
+        filename: string;
+    };
+}
 
 
 export class Nibe1155 {
 
 
-    public static async createInstance (serial: ModbusSerial): Promise<Nibe1155> {
+    public static async createInstance (serial: ModbusSerial, config?: INibe1155Config): Promise<Nibe1155> {
         if (this._instance) { throw new Error('instance already created'); }
-        const rv = new Nibe1155(serial);
+        const rv = new Nibe1155(serial, config);
         await rv.start();
         this._instance = rv;
         return rv;
@@ -119,6 +124,7 @@ export class Nibe1155 {
 
     // ******************************************************************
 
+    private _config: INibe1155Config;
     private _serial: ModbusSerial;
     private _logSetIds: number [];
     private _idMap: { [ id: number ]: Nibe1155Value } = {};
@@ -126,9 +132,7 @@ export class Nibe1155 {
     private _pollingInProgress: boolean;
     private _setPointDegreeMinutes: number;
     private _nonLogSetRegs: Nibe1155Value [] = [];
-    private _rwNonLogRegs: {
-                               reg: Nibe1155Value | number, value?: number, res: (req: ModbusRequest) => void, rej: (err: any) => void
-                           } [] = [];
+    private _rwNonLogRegs: { reg: Nibe1155Value | number, value?: number, res: (req: ModbusRequest) => void, rej: (err: any) => void } [] = [];
     private _readNonLogRegsIndex = 0;
     private _readNonLogRegCnt = 0;
     private _eventEmitter = new events.EventEmitter();
@@ -136,7 +140,7 @@ export class Nibe1155 {
 
     // LOG.SET registers
     private _supplyS1Temp:        Nibe1155Value;
-    private _supplyReturnTemp:    Nibe1155Value;
+    private _supplyS1ReturnTemp:  Nibe1155Value;
     private _brineInTemp:         Nibe1155Value;
     private _brineOutTemp:        Nibe1155Value;
     private _condensorOutTemp:    Nibe1155Value;
@@ -204,81 +208,83 @@ export class Nibe1155 {
     private _cutOffFrequStop2:       Nibe1155Value;
     private _cutOffFrequStop1:       Nibe1155Value;
 
-    private constructor (serial: ModbusSerial) {
+    private constructor (serial: ModbusSerial, config?: INibe1155Config) {
         this._serial = serial;
+        this._config = config ? config : { };
+        if (!this._config.logfile) { this._config.logfile = { disabled: true, filename: null }; }
 
-        this._supplyS1Temp        = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyS1Temp);
-        this._supplyReturnTemp    = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyReturnTemp);
-        this._brineInTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.brineInTemp);
-        this._brineOutTemp        = new Nibe1155Value(Nibe1155Modbus.regDefByLable.brineOutTemp);
-        this._condensorOutTemp    = new Nibe1155Value(Nibe1155Modbus.regDefByLable.condensorOutTemp);
-        this._hotGasTemp          = new Nibe1155Value(Nibe1155Modbus.regDefByLable.hotGasTemp);
-        this._liquidLineTemp      = new Nibe1155Value(Nibe1155Modbus.regDefByLable.liquidLineTemp);
-        this._suctionTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.suctionTemp);
-        this._supplyTemp          = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyTemp);
-        this._degreeMinutes       = new Nibe1155Value(Nibe1155Modbus.regDefByLable.degreeMinutes);
-        this._calcSupplyTemp      = new Nibe1155Value(Nibe1155Modbus.regDefByLable.calcSupplyTemp);
-        this._electricHeaterPower = new Nibe1155Value(Nibe1155Modbus.regDefByLable.electricHeaterPower);
-        this._compressorFrequency = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compressorFrequency);
-        this._compressorInPower   = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compressorInPower);
-        this._compressorState     = new Nibe1155CompressorStateValue(Nibe1155Modbus.regDefByLable.compressorState);
-        this._supplyPumpState     = new Nibe1155PumpStateValue(Nibe1155Modbus.regDefByLable.supplyPumpState);
-        this._brinePumpState      = new Nibe1155PumpStateValue(Nibe1155Modbus.regDefByLable.brinePumpState);
-        this._supplyPumpSpeed     = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyPumpSpeed);
-        this._brinePumpSpeed      = new Nibe1155Value(Nibe1155Modbus.regDefByLable.brinePumpSpeed);
+        this._supplyS1Temp        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyS1Temp.id });
+        this._supplyS1ReturnTemp  = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyS1ReturnTemp.id });
+        this._brineInTemp         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.brineInTemp.id });
+        this._brineOutTemp        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.brineOutTemp.id });
+        this._condensorOutTemp    = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.condensorOutTemp.id });
+        this._hotGasTemp          = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.hotGasTemp.id });
+        this._liquidLineTemp      = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.liquidLineTemp.id });
+        this._suctionTemp         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.suctionTemp.id });
+        this._supplyTemp          = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyTemp.id });
+        this._degreeMinutes       = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.degreeMinutes.id });
+        this._calcSupplyTemp      = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.calcSupplyTemp.id });
+        this._electricHeaterPower = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.electricHeaterPower.id });
+        this._compressorFrequency = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compressorFrequency.id });
+        this._compressorInPower   = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compressorInPower.id });
+        this._compressorState     = new Nibe1155CompressorStateValue({ id: Nibe1155ModbusRegisters.regDefByLabel.compressorState.id });
+        this._supplyPumpState     = new Nibe1155PumpStateValue({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyPumpState.id });
+        this._brinePumpState      = new Nibe1155PumpStateValue({ id: Nibe1155ModbusRegisters.regDefByLabel.brinePumpState.id });
+        this._supplyPumpSpeed     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyPumpSpeed.id });
+        this._brinePumpSpeed      = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.brinePumpSpeed.id });
 
         this._logSetIds = [
             40008, 40012, 40015, 40016, 40017, 40018, 40019, 40022, 40071,
             43005, 43009, 43084, 43136, 43141, 43427, 43431, 43433, 43437, 43439
         ];
 
-        this._outdoorTemp         = new Nibe1155Value(Nibe1155Modbus.regDefByLable.outdoorTemp);
-        this._roomTemp = new Nibe1155Value(Nibe1155Modbus.regDefByLable.roomTemp);
-        this._outdoorTempAverage = new Nibe1155Value(Nibe1155Modbus.regDefByLable.outdoorTempAverage);
-        this._currentL1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.currentL1);
-        this._currentL2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.currentL2);
-        this._currentL3 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.currentL3);
-        this._energyCompAndElHeater = new Nibe1155Value(Nibe1155Modbus.regDefByLable.energyCompAndElHeater);
-        this._energyCompressor = new Nibe1155Value(Nibe1155Modbus.regDefByLable.energyCompressor);
-        this._compFrequTarget = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compFrequTarget);
-        this._compPower10Min = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compPower10Min);
-        this._compNumberOfStarts = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compNumberOfStarts);
-        this._compTotalOperationTime = new Nibe1155Value(Nibe1155Modbus.regDefByLable.compTotalOperationTime);
-        this._alarm = new Nibe1155AlarmValue(Nibe1155Modbus.regDefByLable.alarm);
-        this._alarmReset = new Nibe1155Value(Nibe1155Modbus.regDefByLable.alarmReset);
-        this._heatCurve = new Nibe1155Value(Nibe1155Modbus.regDefByLable.heatCurveS1);
-        this._heatOffset = new Nibe1155Value(Nibe1155Modbus.regDefByLable.heatOffsetS1);
-        this._heatTempMin = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyMinS1);
-        this._heatTempMax = new Nibe1155Value(Nibe1155Modbus.regDefByLable.supplyMaxS1);
-        this._ownHeatCurveP1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP1);
-        this._ownHeatCurveP2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP2);
-        this._ownHeatCurveP3 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP3);
-        this._ownHeatCurveP4 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP4);
-        this._ownHeatCurveP5 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP5);
-        this._ownHeatCurveP6 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP6);
-        this._ownHeatCurveP7 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.ownHeatCurveP7);
-        this._regMaxSupplyDiff = new Nibe1155Value(Nibe1155Modbus.regDefByLable.regMaxSupplyDiff);
-        this._regMinCompFrequ = new Nibe1155Value(Nibe1155Modbus.regDefByLable.regMinCompFrequ);
-        this._regMaxCompFrequ = new Nibe1155Value(Nibe1155Modbus.regDefByLable.regMaxCompFrequ);
-        this._operationalMode = new Nibe1155OperationModeValue(Nibe1155Modbus.regDefByLable.operationalMode);
-        this._supplyPumpMode = new Nibe1155PumpModeValue(Nibe1155Modbus.regDefByLable.supplyPumpMode);
-        this._brinePumpMode = new Nibe1155PumpModeValue(Nibe1155Modbus.regDefByLable.brinePumpMode);
-        this._dmStartHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.dmStartHeating);
-        this._addHeatingStep = new Nibe1155Value(Nibe1155Modbus.regDefByLable.addHeatingStep);
-        this._addHeatingMaxPower = new Nibe1155Value(Nibe1155Modbus.regDefByLable.addHeatingMaxPower);
-        this._addHeatingFuse = new Nibe1155Value(Nibe1155Modbus.regDefByLable.addHeatingFuse);
-        this._allowAdditiveHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.allowAdditiveHeating);
-        this._allowHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.allowHeating);
-        this._stopTempHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.stopTempHeating);
-        this._stopTempAddHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.stopTempAddHeating);
-        this._dmDiffStartAddHeating = new Nibe1155Value(Nibe1155Modbus.regDefByLable.dmDiffStartAddHeating);
-        this._autoHeatMedPumpSpeed = new Nibe1155Value(Nibe1155Modbus.regDefByLable.autoHeatMedPumpSpeed);
-        this._cutOffFrequActivated2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequActivated2);
-        this._cutOffFrequActivated1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequActivated1);
-        this._cutOffFrequStart2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequStart2);
-        this._cutOffFrequStart1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequStart1);
-        this._cutOffFrequStop2 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequStop2);
-        this._cutOffFrequStop1 = new Nibe1155Value(Nibe1155Modbus.regDefByLable.cutOffFrequStop1);
+        this._outdoorTemp            = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.outdoorTemp.id });
+        this._roomTemp               = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.roomTemp.id });
+        this._outdoorTempAverage     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.outdoorTempAverage.id });
+        this._currentL1              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL1.id });
+        this._currentL2              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL2.id });
+        this._currentL3              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL3.id });
+        this._energyCompAndElHeater  = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.energyCompAndElHeater.id });
+        this._energyCompressor       = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.energyCompressor.id });
+        this._compFrequTarget        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compFrequTarget.id });
+        this._compPower10Min         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compPower10Min.id });
+        this._compNumberOfStarts     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compNumberOfStarts.id });
+        this._compTotalOperationTime = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compTotalOperationTime.id });
+        this._alarm                  = new Nibe1155AlarmValue({ id: Nibe1155ModbusRegisters.regDefByLabel.alarm.id });
+        this._alarmReset             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.alarmReset.id });
+        this._heatCurve              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.heatCurveS1.id });
+        this._heatOffset             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.heatOffsetS1.id });
+        this._heatTempMin            = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyMinS1.id });
+        this._heatTempMax            = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyMaxS1.id });
+        this._ownHeatCurveP1         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP1.id });
+        this._ownHeatCurveP2         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP2.id });
+        this._ownHeatCurveP3         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP3.id });
+        this._ownHeatCurveP4         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP4.id });
+        this._ownHeatCurveP5         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP5.id });
+        this._ownHeatCurveP6         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP6.id });
+        this._ownHeatCurveP7         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.ownHeatCurveP7.id });
+        this._regMaxSupplyDiff       = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.regMaxSupplyDiff.id });
+        this._regMinCompFrequ        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.regMinCompFrequ.id });
+        this._regMaxCompFrequ        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.regMaxCompFrequ.id });
+        this._operationalMode        = new Nibe1155OperationModeValue({ id: Nibe1155ModbusRegisters.regDefByLabel.operationalMode.id });
+        this._supplyPumpMode         = new Nibe1155PumpModeValue({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyPumpMode.id });
+        this._brinePumpMode          = new Nibe1155PumpModeValue({ id: Nibe1155ModbusRegisters.regDefByLabel.brinePumpMode.id });
+        this._dmStartHeating         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.dmStartHeating.id });
+        this._addHeatingStep         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingStep.id });
+        this._addHeatingMaxPower     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingMaxPower.id });
+        this._addHeatingFuse         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingFuse.id });
+        this._allowAdditiveHeating   = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.allowAdditiveHeating.id });
+        this._allowHeating           = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.allowHeating.id });
+        this._stopTempHeating        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.stopTempHeating.id });
+        this._stopTempAddHeating     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.stopTempAddHeating.id });
+        this._dmDiffStartAddHeating  = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.dmDiffStartAddHeating.id });
+        this._autoHeatMedPumpSpeed   = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.autoHeatMedPumpSpeed.id });
+        this._cutOffFrequActivated2  = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.cutOffFrequActivated2.id });
+        this._cutOffFrequActivated1  = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.cutOffFrequActivated1.id });
+        this._cutOffFrequStart2      = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.cutOffFrequStart2.id });
+        this._cutOffFrequStart1      = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.cutOffFrequStart1.id });
+        this._cutOffFrequStop2       = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.cutOffFrequStop2.id });
+        this._cutOffFrequStop1       = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.cutOffFrequStop1.id });
 
         this._nonLogSetRegs = [];
         for (const att in this) {
@@ -291,6 +297,8 @@ export class Nibe1155 {
                 }
             }
         }
+        // debug.fine('LOGSet Ids: %o', this._logSetIds);
+        // debug.fine('Non LOGSet Ids: %o', this._nonLogSetRegs);
 
         // this._debugEventInfoIds.push(this._supplyPumpSpeed.id);
         // this._debugEventInfoIds.push(this._brinePumpSpeed.id);
@@ -889,8 +897,8 @@ export class Nibe1155 {
         return this._supplyS1Temp;
     }
 
-    public get supplyReturnTemp (): Nibe1155Value {
-        return this._supplyReturnTemp;
+    public get supplyS1ReturnTemp (): Nibe1155Value {
+        return this._supplyS1ReturnTemp;
     }
 
     public get brineInTemp (): Nibe1155Value {
@@ -961,24 +969,15 @@ export class Nibe1155 {
         return this._brinePumpSpeed;
     }
 
-    public toObject (preserveDate?: boolean): INibe1155 {
-        return null;
-    }
-
-    public toValuesObject (): { [ id: string ]: string } {
+    public toValuesObject (addTime = true): { [ id: string ]: string } {
         const rv: { [ id: string ]: string } = {};
         for (const att in this) {
             if (!this.hasOwnProperty(att)) { continue; }
             const v = this[att];
             if (v instanceof Nibe1155Value) {
-                let x: string;
-                try {
-                    x = sprintf(v.format, v.value);
-                } catch (err) {
-                    debug.warn('%s %s\n%e', v.id, v.format, err);
-                    x = sprintf('%f', v.value);
-                }
-                rv[v.label] = sprintf('%s%s', x.trim(), v.unit);
+                rv[v.label] = v.valueAsString(addTime);
+            } else {
+                rv[att.toString()] = v.toString();
             }
         }
         return rv;
@@ -988,7 +987,7 @@ export class Nibe1155 {
         const v = this.toValuesObject();
         const rv: INibe1155Values = {
             supplyS1Temp:          this._supplyS1Temp.valueAsString(true),
-            supplyReturnTemp:      this._supplyReturnTemp.valueAsString(true),
+            supplyS1ReturnTemp:    this._supplyS1ReturnTemp.valueAsString(true),
             brineInTemp:           this._brineInTemp.valueAsString(true),
             brineOutTemp:          this._brineOutTemp.valueAsString(true),
             condensorOutTemp:      this._condensorOutTemp.valueAsString(true),
@@ -1014,7 +1013,7 @@ export class Nibe1155 {
         const v = this.toValuesObject();
         const rv: IExtendedNibe1155Values = {
             supplyS1Temp:           this._supplyS1Temp.valueAsString(true),
-            supplyReturnTemp:       this._supplyReturnTemp.valueAsString(true),
+            supplyS1ReturnTemp:     this._supplyS1ReturnTemp.valueAsString(true),
             brineInTemp:            this._brineInTemp.valueAsString(true),
             brineOutTemp:           this._brineOutTemp.valueAsString(true),
             condensorOutTemp:       this._condensorOutTemp.valueAsString(true),
@@ -1161,7 +1160,7 @@ export class Nibe1155 {
             this._readNonLogRegCnt++;
             if (this._readNonLogRegCnt % 2 === 1 && (this._setPointDegreeMinutes < 0 || this._setPointDegreeMinutes >= 0)) {
                 debug.finest('Polling: writing Degree Minutes setpoint %s ...', this._setPointDegreeMinutes);
-                const r = Nibe1155Modbus.regDefByLable.degreeMinutes;
+                const r = Nibe1155ModbusRegisters.regDefByLabel.degreeMinutes;
                 const x = this._setPointDegreeMinutes >= 0 ? this._setPointDegreeMinutes * 10 : 0x10000 + this._setPointDegreeMinutes * 10;
                 await this.writeRegisterNow(r.id, x, r.size);
                 debug.finer('Polling: writing Degree Minutes setpoint %s done.', this._setPointDegreeMinutes);
@@ -1175,19 +1174,19 @@ export class Nibe1155 {
                     }
                 }
                 const id = x.reg instanceof Nibe1155Value ? x.reg.id : x.reg;
-                const size = x.reg instanceof Nibe1155Value ? x.reg.size : 'u16';
+                const size = x.reg instanceof Nibe1155Value ? x.reg.modbusRegSize : 'u16';
                 const label = x.reg instanceof Nibe1155Value ? x.reg.label : '?';
                 try {
                     if (x.value === undefined) {
                         debug.finest('Polling: requested read of register %s %s ...', id, label);
-                        const rv = await this.readRegisterNow(id, size);
+                        const rv = await this.readRegisterNow(id, size !== '?' ? size : 'u16');
                         const value = x.reg instanceof Nibe1155Value ? x.reg.value : rv.response.u16At(3);
-                        Statistics.Instance.handleSingleValue(label, value, rv.responseAt);
+                        Statistics.getInstance().handleSingleValue(label, value, rv.responseAt);
                         debug.finer('Polling: requested read of register %s %s done -> %s', id, label, value);
                         x.res(rv);
                     } else {
                         debug.finest('Polling: requested write of register %s %s = %s ...', id, label, x.value);
-                        const rv = await this.writeRegisterNow(id, x.value, size);
+                        const rv = await this.writeRegisterNow(id, x.value, size !== '?' ? size : 'u16');
                         debug.finer('Polling: requested write of register %s %s = %s done', id, label, x.value);
                         // Statistics.Instance.handleSingleValue(label, x.value);
                         x.res(rv);
@@ -1200,9 +1199,10 @@ export class Nibe1155 {
                 const v = this._nonLogSetRegs[this._readNonLogRegsIndex];
                 this._readNonLogRegsIndex = (this._readNonLogRegsIndex + 1) % this._nonLogSetRegs.length;
                 debug.finest('Polling: periodic read register %s %s ...', v.id, v.label);
-                const requ = await this.readRegisterNow(v.id, v.size);
+                const size = v instanceof Nibe1155Value ? v.modbusRegSize : 'u16';
+                const requ = await this.readRegisterNow(v.id, size !== '?' ? size : 'u16');
                 debug.finer('Polling: periodic read register %s %s done -> %s', v.id, v.label, v.value);
-                Statistics.Instance.handleSingleValue(v.label, v.value, requ.responseAt);
+                Statistics.getInstance().handleSingleValue(v.label, v.value, requ.responseAt);
             }
 
         } catch (err) {
@@ -1216,6 +1216,7 @@ export class Nibe1155 {
     private async pollLogSetValues () {
         debug.fine('start polling LOG.SET ids');
         try {
+            const mr: INibe1155MonitorRecord = { values: {} };
             for (let i = 0; i < this._logSetIds.length; i++) {
                 const firstAdd = this._logSetIds[i];
                 let lastAdd = firstAdd;
@@ -1223,6 +1224,7 @@ export class Nibe1155 {
                     lastAdd = this._logSetIds[++i];
                 }
                 const quantity = lastAdd - firstAdd + 1;
+                debug.finest('pollLogSetValues: firstAddress=%s, quantity=%s', firstAdd, quantity);
                 try {
                     const requ = ModbusRequestFactory.createReadHoldRegister(1, firstAdd + 1, quantity, false);
                     await this._serial.send(requ);
@@ -1236,11 +1238,20 @@ export class Nibe1155 {
                     debug.warn('polling %s register starting on id %s fails\n%e', quantity, firstAdd, err);
                 }
             }
-            this.handleEventEmitter();
+
             const x = this.toNibe1155ValuesObject();
             this.writeLog(this.toNibe1155ValuesObject());
-            Statistics.Instance.handleMonitorRecord(Nibe1155MonitorRecord.createInstance(this));
-            // debug.info('%O', this.toNibe1155ValuesObject());
+            this.handleEventEmitter();
+
+            for (const idString of this._logSetIds) {
+                const id = <Nibe1155ModbusIds>+idString;
+                const d = Nibe1155ModbusRegisters.regDefById[id];
+                const v = (<any>this)['_' + d.label];
+                if (!(v instanceof Nibe1155Value)) { throw new Error('missing value on id ' + idString); }
+                mr.values[id] = v.toObject();
+            }
+            Statistics.getInstance().handleMonitorRecord(new Nibe1155MonitorRecord(mr));
+
         } catch (err) {
             debug.warn('polling LOG.SET ids fails\n%e', err);
         }
@@ -1254,7 +1265,7 @@ export class Nibe1155 {
                 debug.warn('skip response id %s, id not in idMap', id - 1);
                 continue;
             }
-            switch (x.size) {
+            switch (x.modbusRegSize) {
                 case 'u8': case 's8': case 'u16': case 's16': {
                     x.setRawValue(response.u16At(offset), at); offset += 2;
                     break;
@@ -1265,15 +1276,19 @@ export class Nibe1155 {
                     break;
                 }
 
-                default: debug.warn('skip response id %s, invalid size %s', id, x.size);
+                default: debug.warn('skip response id %s, invalid size %s', id, x.modbusRegSize);
             }
         }
     }
 
     private writeLog (x: INibe1155Values) {
+        if (this._config.logfile.disabled || !this._config.logfile.filename) { return; }
         const now = new Date();
+        let fn = this._config.logfile.filename;
+        fn = fn.replace(/%Y/g, sprintf('%04d', now.getFullYear()));
+        fn = fn.replace(/%M/g, sprintf('%02d', now.getMonth() + 1));
+        fn = fn.replace(/%D/g, sprintf('%02d', now.getDate()));
         const date = sprintf('%04d-%02d-%02d', now.getFullYear(), now.getMonth() + 1, now.getDate());
-        const fn = sprintf('/var/log/fronius/nibe1155_%s.csv', date);
         let data = sprintf('"%02d:%02d:%02d"', now.getHours(), now.getMinutes(), now.getSeconds());
         let header = fs.existsSync(fn) ? null : sprintf('"Time (%s)"', date);
         for (const att in x) {
@@ -1303,22 +1318,19 @@ export class Nibe1155 {
         }
 
         for (const v of changed) {
-            const msg = sprintf('change-event - (%s) %s: %s -> %s', v.id, v.label, v.oldValue, v.value);
+            const vNew = { value: v.value, at: v.valueAt };
+            const vOld = { value: v.value, at: v.valueAt };
+            const msg = sprintf('change-event - (%s) %s: %o -> %o', v.id, v.label, vOld, vNew);
             if (this._debugEventInfoIds.findIndex( (x) => x === v.id) === -1) {
                 debugEvent.fine(msg);
             } else {
                 debugEvent.info(msg);
             }
-            this._eventEmitter.emit('all', v.value, v.oldValue, v);
-            this._eventEmitter.emit(v.label, v.value, v.oldValue, v);
+            this._eventEmitter.emit('all', vNew, vOld, v);
+            this._eventEmitter.emit(v.label, vNew, vOld, v);
             v.clearValueChanged();
         }
 
     }
 
-
 }
-
-
-
-

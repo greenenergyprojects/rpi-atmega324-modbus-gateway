@@ -1,40 +1,41 @@
 // https://www.liquidlight.co.uk/blog/article/how-do-i-update-to-gulp-4/
 
-const remoteHostname = 'rpi';
-const remoteTargetDir = '/home/pi/nibe1155/server';
-
 const fs = require('fs');
 
-const gulp         = require('gulp4'),
+const remoteHostname = 'pi-nibe1155';
+const remoteTargetDir = '/home/pi/rpi/nibe1155';
+const sshConfig = {
+    host: 'pi-nibe1155',
+    port: 22,
+    username: 'pi',
+    privateKey: fs.readFileSync('/home/steiner/.ssh/id_rsa_rpi')
+}
+
+console.log('gulp running in folder ' + __dirname);
+
+const gulp         = require('gulp'),
       gChanged     = require('gulp-changed'),
       gReplace     = require('gulp-replace'),
       gRsync       = require('gulp-rsync'),
       gSsh         = require('gulp-ssh'),
       gSourcemaps  = require('gulp-sourcemaps'),
-      gTypescript  = require('gulp-typescript'),
-      gUsing       = require('gulp-using');
+      gTypescript  = require('gulp-typescript'),      
+      gUsing       = require('gulp-using');      
       del          = require('del'),
       merge        = require('merge-stream'),
       nconf        = require('nconf'),
       vfs          = require('vinyl-fs');
 
-// const gulpDebug = require('gulp-debug');
+const gulpDebug = require('gulp-debug');
+      
+      
 
 const verbose = 0;
 let hasError = false;
-let finalMessage = '';
 const sep = '----------------------------------------------------------------------------';
 const remoteConfig = nconf.file('remote.json').get();
-console.log(__dirname, remoteConfig);
-
 const tsProject = gTypescript.createProject("tsconfig.json");
 
-const sshConfig = {
-    host: 'rpi',
-    port: 22,
-    username: 'pi',
-    privateKey: fs.readFileSync('/home/steiner/.ssh/id_rsa_rpi')
-}
 var ssh = new gSsh({
     ignoreErrors: false,
     sshConfig: sshConfig
@@ -43,7 +44,7 @@ var ssh = new gSsh({
 
 gulp.task('clean', function () {
     if (verbose) { console.log("Task clean gestartet"); }
-    const toDelete = [ 'dist/*' ];
+    const toDelete = [ 'dist/*', 'dist_remote/*' ];
     for (let s of toDelete) {
         if (verbose > 1) { console.log(' --> deleting ' + s); }
     }
@@ -72,10 +73,10 @@ gulp.task('copyFiles', function () {
             .pipe(gulp.dest('dist/views/'));
 
     const copyPublic =
-        gulp.src('src/public/**/*')
-            .pipe(gChanged('dist/public', { }))
+        gulp.src('src/assets/**/*')
+            .pipe(gChanged('dist/assets', { }))
             .pipe(gUsing({prefix:'  --> Copying file', path:'cwd', color:'blue', filesize:false}))
-            .pipe(gulp.dest('dist/public/'));
+            .pipe(gulp.dest('dist/assets/'));
 
     return merge(copyPugViews, copyPublic);
 });
@@ -89,13 +90,16 @@ gulp.task('dist_remote', function(done) {
         return;
     }
     const rv1 = gulp.src(['dist/**/*.js.map'])
-        .pipe(gReplace(__dirname + '/src', remoteTargetDir + '/src' ))
+        .pipe(gReplace(__dirname + '/src', remoteTargetDir + '/server/src' ))
         .pipe(gulp.dest('dist_remote/'));
 
     const rv2 = gulp.src(['dist/**/*.js'])
-        .pipe(gulp.dest('dist_remote/'));
+        .pipe(gulp.dest('dist_remote/'));          
 
-    return merge(rv1, rv2);
+    const rv3 = gulp.src(['src/views/*'])
+        .pipe(gulp.dest('dist_remote/views/'));
+
+    return merge(rv1, rv2, rv3);
 });
 
 gulp.task('copyToRemote', function(done) {
@@ -109,34 +113,89 @@ gulp.task('copyToRemote', function(done) {
 
     const rsyncSrc =
         vfs.src('src/**')
-            // .pipe(gulpDebug())
+            .pipe(gulpDebug())
             .pipe(gRsync({
                 root: 'src/',
                 hostname: remoteHostname,
-                destination: remoteTargetDir + '/src/',
+                destination: remoteTargetDir + '/server/src/',
                 emptyDirectories: true,
                 links: true
             }));
 
     const rsyncDist =
         gulp.src('dist_remote/**')
+            // .pipe(gulpDebug())
             .pipe(gRsync({
                 root: 'dist_remote/',
                 hostname: remoteHostname,
-                destination: remoteTargetDir + '/dist/'
+                destination: remoteTargetDir + '/server/dist/'
         }));
 
-    const rsyncOthers =
-        gulp.src(['package.json', 'README*'])
+    const rsyncPublic =
+        gulp.src('assets/**')
+            // .pipe(gulpDebug())
             .pipe(gRsync({
-                root: '',
+                root: 'assets/',
+                hostname: remoteHostname,
+                destination: remoteTargetDir + '/server/assets/'
+        }));
+
+    const rsyncServerOthers =
+        gulp.src(['package.json', 'README*' ], { allowEmpty: true })
+            // .pipe(gulpDebug())
+            .pipe(gRsync({
+                root: './',
+                hostname: remoteHostname,
+                destination: remoteTargetDir + '/server/'
+        }));
+
+    const rsyncProjectOthers =
+        gulp.src(['../package.json', '../README*' ], { allowEmpty: true })
+            // .pipe(gulpDebug())
+            .pipe(gRsync({
+                root: '../',
                 hostname: remoteHostname,
                 destination: remoteTargetDir + '/'
         }));
 
+    const rsyncNgxSrc =
+        gulp.src('../ngx/src/**')
+            // .pipe(gulpDebug())
+            .pipe(gRsync({
+                root: '../ngx/',
+                hostname: remoteHostname,
+                destination: remoteTargetDir + '/ngx/',
+                emptyDirectories: true
+        }));
 
-    return merge(rsyncSrc, rsyncDist, rsyncOthers);
+    const rsyncNgxDist =
+        gulp.src('../ngx/dist/**')
+            // .pipe(gulpDebug())
+            .pipe(gRsync({
+                root: '../ngx/',
+                hostname: remoteHostname,
+                destination: remoteTargetDir + '/ngx/',
+                emptyDirectories: true
+        }));
+
+    return merge(rsyncSrc, rsyncDist, rsyncPublic, rsyncServerOthers, rsyncProjectOthers, rsyncNgxSrc, rsyncNgxDist);
 });
+
+gulp.task('remoteInit', function (done) {
+    const cmds = [];
+    cmds.push('test -d ' + remoteTargetDir + ' && mv ' + remoteTargetDir + ' ' + remoteTargetDir + "_$(date +%Y-%m-%d_%H%M%S-%3N)");
+    cmds.push('mkdir ' + remoteTargetDir);
+    cmds.push('mkdir -p ' + remoteTargetDir + '/server/src');
+    return ssh.exec(cmds, {filePath: 'gulp-ssh-commands-init.log'}).pipe(gulp.dest('../logs'));
+})
+
+gulp.task('remoteClean', function (done) {
+    const cmds = [];
+    cmds.push('test -d ' + remoteTargetDir + '/server/dist && rm -r ' + remoteTargetDir + '/server/dist');
+    cmds.push('test -d ' + remoteTargetDir + '/ngx/dist && rm -r ' + remoteTargetDir + '/ngx/dist');
+    return ssh.exec(cmds, {filePath: 'gulp-ssh-commands-clean.log'}).pipe(gulp.dest('../logs'));
+})
+
 
 gulp.task('remotePlatform', function (done) {
     if (remoteConfig && remoteConfig.disabled) {
@@ -153,22 +212,19 @@ gulp.task('remotePlatform', function (done) {
 })
 
 gulp.task('remoteStart', function (done) {
-    // return ssh.exec(['cd ' + remoteTargetDir, 'nodemon --inspect=0.0.0.0:9229 --inspect-brk=0.0.0.0:9229 dist/main.js'], {filePath: 'ssh.log'})
-    //     .on('data', function (file) { console.log(file.contents.toString())
-    // });
-    ssh.on('error', function(err) { console.log(err); })
     ssh.shell(
-        ['cd ' + remoteTargetDir, 'killall node', 'nohup node --inspect=0.0.0.0:9229 --inspect-brk=0.0.0.0:9229 dist/main.js &']
+        ['cd ' + remoteTargetDir + '/server', 'killall node', 'nohup node --inspect=0.0.0.0:9229 dist/main.js &']
+        //  ['cd ' + remoteTargetDir + '/server', 'killall node', 'nohup node --inspect=0.0.0.0:9229 --inspect-brk=0.0.0.0:9229 dist/main.js &']
         // ['cd ' + remoteTargetDir, 'nodemon --inspect=0.0.0.0:9229 --inspect-brk=0.0.0.0:9229 dist/main.js']
         //, {filePath: 'shell.log'}
     )
-    // .on('data', function (file) { console.log(file.contents.toString()) })
-    
     done();
 });
 
+gulp.task('cleanAll', gulp.parallel(['clean', 'remoteClean']));
 gulp.task('build', gulp.series(['transpile', 'copyFiles']));
 gulp.task('buildAndLaunchOnRemote', gulp.series(['build', 'remotePlatform', 'remoteStart' ]));
+gulp.task('buildAndCopyToRemote', gulp.series(['build', 'remotePlatform' ]));
 gulp.task('start', gulp.series(['build', 'remoteStart']));
 gulp.task('default', gulp.series('start'));
 
@@ -217,4 +273,3 @@ function myFinishHandler (results) {
 
     finalMessage = msg;
 }
-

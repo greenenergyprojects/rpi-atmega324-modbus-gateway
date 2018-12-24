@@ -14,7 +14,7 @@ import { handleError, RouterError, BadRequestError, AuthenticationError } from '
 
 export class RouterModbus {
 
-    public static get Instance(): express.Router {
+    public static getInstance(): express.Router {
         if (!this._instance) {
             this._instance = new RouterModbus;
         }

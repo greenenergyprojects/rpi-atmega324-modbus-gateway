@@ -4,22 +4,20 @@ const debug: debugsx.IFullLogger = debugsx.createFullLogger('devices:HeatPump');
 const debugState: debugsx.IFullLogger = debugsx.createFullLogger('HeatPump.State');
 
 import { Nibe1155 } from './nibe1155';
-import { IHeatpumpMode } from '../client/nibe1155-values';
-import { thisExpression } from 'babel-types';
-import { Value } from './value';
+import { HeatpumpControllerMode, Nibe1155Controller, INibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
 import { ModeEconomy } from './modes/mode-economy';
 
-export type State = 'init' | 'off' | 'error' | 'test' | 'frequency' | 'economy';
+// export type State = 'init' | 'off' | 'error' | 'test' | 'frequency' | 'economy';
 
-export interface IController {
-    createdAt: Date;
-    state: string;
-    running: boolean;
-    desiredState?: string;
-    inProgressSince?: Date;
-    setPointTemp?: number;
-    fSetpoint?: number;
-}
+// export interface IController {
+//     createdAt: Date;
+//     state: HeatpumpControllerMode;
+//     running: boolean;
+//     desiredState?: HeatpumpControllerMode;
+//     inProgressSince?: Date;
+//     setPointTemp?: number;
+//     fSetpoint?: number;
+// }
 
 export class HeatPump {
 
@@ -41,9 +39,9 @@ export class HeatPump {
     // ******************************************************************
 
     private _nibe1155: Nibe1155;
-    private _state: State;
-    private _desiredState: State;
-    private _recentState: State;
+    private _state: HeatpumpControllerMode;
+    private _desiredState: HeatpumpControllerMode;
+    private _recentState: HeatpumpControllerMode;
     private _inProgressSince: Date;
     private _timer: NodeJS.Timer;
 
@@ -57,14 +55,14 @@ export class HeatPump {
     private constructor (nibe1155: Nibe1155) {
         this._nibe1155 = nibe1155;
         this._modeEconomy = new ModeEconomy(nibe1155);
-        this._state = 'init';
+        this._state = HeatpumpControllerMode.init;
         this._desiredFrequency = 30;
     }
 
 
-    public async start (desiredState: State) {
+    public async start (desiredMode: HeatpumpControllerMode) {
         if (this._timer) { throw new Error('already started'); }
-        this._desiredState = desiredState;
+        this._desiredState = desiredMode;
         this._timer = setInterval( () => this.handleStateMachine(), 2000);
         process.nextTick( () => this.handleStateMachine() );
     }
@@ -75,48 +73,42 @@ export class HeatPump {
         this._timer = null;
     }
 
-    public get state (): State {
+    public get state (): HeatpumpControllerMode {
         return this._state;
     }
 
-    public async setDesiredMode (mode: IHeatpumpMode): Promise<IHeatpumpMode> {
+    public async setDesiredMode (mode: INibe1155Controller): Promise<INibe1155Controller> {
         // await this.delay(1000);
         switch (mode.desiredMode) {
-            case 'off':     this._desiredState = 'off'; break;
-            case 'test':    this._desiredState = 'test'; break;
-
-            case 'economy': {
-                this._desiredState = 'economy';
-                this._modeEconomy.setParams(mode);
-                break;
-            }
+            case 'off':     this._desiredState = HeatpumpControllerMode.off; break;
+            case 'test':    this._desiredState = HeatpumpControllerMode.test; break;
 
             case 'frequency': {
                 if (!(mode.fSetpoint >= 20 && (mode.fSetpoint <= 90))) { throw new Error('illegal fSetpoint'); }
-                this._desiredState = 'frequency';
+                this._desiredState =  HeatpumpControllerMode.frequency;
                 this._desiredFrequency = mode.fSetpoint;
                 break;
             }
             default: throw new Error('unsupported mode ' + mode.desiredMode);
         }
-        const rv: IHeatpumpMode = {
+        const rv: INibe1155Controller = {
             createdAt: new Date(),
             currentMode: this._state,
             desiredMode: this._desiredState,
             fSetpoint: this._desiredFrequency
-        }
-        debug.warn(rv);
+        };
+        debug.info('setting desired mode %o', rv);
         return rv;
     }
 
-    public toObject (): IController {
+    public toObject (preserveDate = true): INibe1155Controller {
         const rv: any = {
-            createdAt: new Date(),
-            running: this._timer !== undefined,
-            state: this._state,
-            inProgressSince: this._inProgressSince,
-            setPointTemp: this._setPointTemp,
-            fSetpoint: this._fSetpoint,
+            createdAt:        preserveDate ? new Date() : Date.now(),
+            running:          this._timer !== undefined,
+            state:            this._state,
+            inProgressSince:  preserveDate ? this._inProgressSince : this._inProgressSince.getTime(),
+            setPointTemp:     this._setPointTemp,
+            fSetpoint:        this._fSetpoint,
             desiredFrequency: this._desiredFrequency
         };
         if (this._state !== this._desiredState) {
@@ -151,14 +143,13 @@ export class HeatPump {
         if (this._inProgressSince) { return; }
         try {
             this._inProgressSince = new Date();
-            let nextState: State;
+            let nextState: HeatpumpControllerMode;
             switch (this._state) {
                 case 'init':      nextState = await this.handleStateInit(); break;
                 case 'off':       nextState = await this.handleStateOff(); break;
-                case 'error':     nextState = await this.handleStateError(); break;
                 case 'test':      nextState = await this.handleStateTest(); break;
                 case 'frequency': nextState = await this.handleStateFrequency(); break;
-                case 'economy':   nextState = await this.handleStateEconomy(); break;
+                case 'error':     nextState = await this.handleStateError(); break;
                 default:
                     debugState.warn('state %s not supported', this._state); break;
             }
@@ -175,13 +166,13 @@ export class HeatPump {
         }
     }
 
-    private async handleStateInit (): Promise<State> {
+    private async handleStateInit (): Promise<HeatpumpControllerMode> {
         debugState.finer('handleStateInit(): recentState = %s', this._recentState);
         return this._desiredState;
     }
 
 
-    private async handleStateOff (): Promise<State> {
+    private async handleStateOff (): Promise<HeatpumpControllerMode> {
         debugState.finer('handleStateOff(): recentState = %s', this._recentState);
         if (this._desiredState !== 'off') {
             debugState.info('stop OFF -> %s', this._desiredState);
@@ -198,10 +189,10 @@ export class HeatPump {
             await this._nibe1155.writeBrinePumpMode('auto');
             await this._nibe1155.writeSupplyPumpMode('economy');
         }
-        return 'off';
+        return HeatpumpControllerMode.off;
     }
 
-    private async handleStateError (): Promise<State> {
+    private async handleStateError (): Promise<HeatpumpControllerMode> {
         debugState.finer('handleStateError(): recentState = %s', this._recentState);
         if (this._desiredState !== 'error') {
             debugState.info('stop ERROR -> %s', this._desiredState);
@@ -226,10 +217,10 @@ export class HeatPump {
             await this._nibe1155.writeBrinePumpMode('auto');
             await this._nibe1155.writeSupplyPumpMode('economy');
         }
-        return 'error';
+        return HeatpumpControllerMode.error;
     }
 
-    private async handleStateFrequency (): Promise<State> {
+    private async handleStateFrequency (): Promise<HeatpumpControllerMode> {
         // debugState.finer('handleStateTest(): recentState = %s', this._recentState);
 
         const t = this._nibe1155.supplyTemp.value;
@@ -241,7 +232,7 @@ export class HeatPump {
             debugState.info('start ON (Frequency)');
             if (t >= 55) {
                 debugState.info('supply temperature %s reached, switch to OFF', t);
-                return 'off';
+                return HeatpumpControllerMode.off;
             }
             await this._nibe1155.writeHeatTempMin(60);
             await this._nibe1155.writeHeatTempMax(60);
@@ -265,12 +256,12 @@ export class HeatPump {
                 debugState.fine('OK: Compressor is running');
             } else {
                 debugState.warn('ERROR: compressor does not start');
-                return 'error';
+                return HeatpumpControllerMode.error;
             }
         }
         if (this._nibe1155.condensorOutTemp.value >= 57.0) { // 58.8 -> Auto Off Alarm 163
             debug.info('Temperature %s (Condensor out %s°C) reached, switch to OFF', t, this._nibe1155.condensorOutTemp.value);
-            return 'off';
+            return HeatpumpControllerMode.off;
 
         } else {
             const p1 = { x: 53, y: this._desiredFrequency };
@@ -308,33 +299,11 @@ export class HeatPump {
             await this._nibe1155.writeHeatTempMax(this._setPointTemp);
         }
 
-        return 'frequency';
-    }
-
-    private async handleStateEconomy (): Promise<State> {
-        try {
-            if (this._desiredState !== 'economy') {
-                debugState.info('stop (Economy) -> %s', this._desiredState);
-                await this._modeEconomy.stop();
-                return this._desiredState;
-            }
-            if (this._recentState !== 'economy') {
-                debugState.info('start Economy');
-                await this._modeEconomy.start();
-            } else {
-                await this._modeEconomy.run();
-            }
-            return 'economy';
-
-        } catch (err) {
-            debug.warn(err);
-            return 'off';
-        }
+        return HeatpumpControllerMode.frequency;
     }
 
 
-
-    private async handleStateTest (): Promise<State> {
+    private async handleStateTest (): Promise<HeatpumpControllerMode> {
         // debugState.finer('handleStateTest(): recentState = %s', this._recentState);
 
         const t = this._nibe1155.supplyTemp.value;
@@ -364,13 +333,13 @@ export class HeatPump {
                 debugState.fine('OK: Compressor is running');
             } else {
                 debugState.warn('ERROR: compressor does not start');
-                return 'error';
+                return HeatpumpControllerMode.error;
             }
         }
 
         if (this._nibe1155.condensorOutTemp.value >= 58.5) { // 58.8 -> Auto Off Alarm 163
             debug.info('Temperature %s (Condensor out %s°C) reached, switch to OFF', t, this._nibe1155.condensorOutTemp.value);
-            return 'off';
+            return HeatpumpControllerMode.off;
 
         } else {
             this._fSetpoint = undefined;
@@ -395,7 +364,7 @@ export class HeatPump {
             await this._nibe1155.writeHeatTempMax(this._setPointTemp);
         }
 
-        return 'test';
+        return HeatpumpControllerMode.test;
 
 
     }
