@@ -170,7 +170,7 @@ export class Statistics {
         if (this._handleMonitorRecordCount === 0) {
             debug.warn('no monitor records received, cannot continue statistics!');
         } else {
-            debug.fine('%d monitor records processed, history-size=%d', this._handleMonitorRecordCount, this._history.length);
+            debug.finer('%d monitor records processed, history-size=%d', this._handleMonitorRecordCount, this._history.length);
             this._handleMonitorRecordCount = 0;
             if (this._current) {
                 this._history.push(this._current);
@@ -186,32 +186,37 @@ export class Statistics {
     }
 
     private writeToCsvFile (config: { filename: string, writeDate?: boolean }, x: StatisticsRecordFactory) {
-        let filename = config.filename;
-        let i = filename.indexOf('%Y');
-        if (i >= 0) {
-            filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getFullYear()) + filename.substr(i + 2);
-        }
-        i = filename.indexOf('%M');
-        if (i >= 0) {
-            filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getMonth() + 1) + filename.substr(i + 2);
-        }
-        i = filename.indexOf('%D');
-        if (i >= 0) {
-            filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getDate()) + filename.substr(i + 2);
-        }
-        i = filename.indexOf('%m');
-        if (i >= 0) {
-            filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getMilliseconds()) + filename.substr(i + 2);
-        }
-        i = filename.indexOf('%d');
-        if (i >= 0) {
-            const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ];
-            filename = filename.substr(0, i) + sprintf('%02d%s', wd[x.firstAt.getDay()], filename.substr(i + 2));
-        }
+        try {
+            let filename = config.filename;
+            let i = filename.indexOf('%Y');
+            if (i >= 0) {
+                filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getFullYear()) + filename.substr(i + 2);
+            }
+            i = filename.indexOf('%M');
+            if (i >= 0) {
+                filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getMonth() + 1) + filename.substr(i + 2);
+            }
+            i = filename.indexOf('%D');
+            if (i >= 0) {
+                filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getDate()) + filename.substr(i + 2);
+            }
+            i = filename.indexOf('%m');
+            if (i >= 0) {
+                filename = filename.substr(0, i) + sprintf('%02d', x.firstAt.getMilliseconds()) + filename.substr(i + 2);
+            }
+            i = filename.indexOf('%d');
+            if (i >= 0) {
+                const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ];
+                filename = filename.substr(0, i) + sprintf('%02d%s', wd[x.firstAt.getDay()], filename.substr(i + 2));
+            }
 
-        this._writeFileLines.push({ filename: filename, line: x.toLine(), header: x.toHeader()});
-        if (this._writeFileLines.length === 1) {
-            this.writeToFile();
+            this._writeFileLines.push({ filename: filename, line: x.toLine(), header: x.toHeader()});
+            if (this._writeFileLines.length === 1) {
+                this.writeToFile();
+            }
+
+        } catch (err) {
+            debug.warn(err);
         }
     }
 

@@ -7,7 +7,7 @@ import { INibe1155Controller, Nibe1155Controller } from './nibe1155-controller';
 import { CommonLogger } from '../../common-logger';
 
 export interface INibe1155MonitorRecord {
-    createdAt?:  Date | number | string;
+    createdAt:  Date | number | string;
     controller?: INibe1155Controller;
     logsetIds?:  number [];
     values?:     { [ id in Nibe1155ModbusIds ]?: INibe1155Value };
@@ -15,7 +15,7 @@ export interface INibe1155MonitorRecord {
 
 export class Nibe1155MonitorRecord extends DataRecord<INibe1155MonitorRecord> implements INibe1155MonitorRecord {
 
-    private _createdAt?:  Date;
+    private _createdAt:  Date;
     private _controller?:          Nibe1155Controller;
     private _logsetIds?:           number [];
     private _values?:              { [ id in Nibe1155ModbusIds ]?: Nibe1155Value };
@@ -23,10 +23,10 @@ export class Nibe1155MonitorRecord extends DataRecord<INibe1155MonitorRecord> im
     public constructor (data: INibe1155MonitorRecord) {
         super(data);
         try {
-            // const missing = DataRecord.getMissingAttributes( data, [ ]);
-            // if (missing) {
-            //     throw new Error('missing attribute ' + missing);
-            // }
+            const missing = DataRecord.getMissingAttributes( data, [ 'createdAt' ]);
+            if (missing) {
+                throw new Error('missing attribute ' + missing);
+            }
             let attCnt = 0;
             for (const a of Object.getOwnPropertyNames(data)) {
                 if ( a === 'createdAt') {

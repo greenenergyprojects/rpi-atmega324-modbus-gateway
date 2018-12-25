@@ -1,4 +1,9 @@
 {
+    "startmode": {
+        "disabled": true,
+        "mode": "off",
+        "frequency": 25
+    },
     "modbus-serial": {
         "device": "/dev/ttyUSB0",
         "options": {
@@ -45,7 +50,7 @@
         "wmodule": 16,
         "wlevel": 6,
         "location": "-*",
-        "enabled": "*::WARN, *::INFO, *ModbusSerial::INFO, HeatPump.State::INFO, HeatPump.Action::*, *Nibe1155::INFO, *ModeEconomy::*"
+        "enabled": "*::WARN, *::INFO, *::FINE"
     }
 
 }

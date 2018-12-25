@@ -19,17 +19,28 @@ import { ModeEconomy } from './modes/mode-economy';
 //     fSetpoint?: number;
 // }
 
+export interface IHeatPumpControllerStartConfig {
+    disabled: boolean;
+    mode: HeatpumpControllerMode;
+    fSetpoint?: number;
+}
+
+export interface IHeatPumpConfig {
+    disabled: boolean;
+    start?: IHeatPumpControllerStartConfig [];
+}
+
 export class HeatPump {
 
-    public static async createInstance (nibe1155: Nibe1155): Promise<HeatPump> {
+    public static async createInstance (nibe1155: Nibe1155, config: IHeatPumpConfig): Promise<HeatPump> {
         if (this._instance) { throw new Error('instance already created'); }
-        const rv = new HeatPump(nibe1155);
+        const rv = new HeatPump(nibe1155, config);
         await rv.init();
         this._instance = rv;
         return rv;
     }
 
-    public static get Instance (): HeatPump {
+    public static getInstance (): HeatPump {
         if (!this._instance) { throw new Error('no instance created yet'); }
         return this._instance;
     }
@@ -38,6 +49,7 @@ export class HeatPump {
 
     // ******************************************************************
 
+    private _config: IHeatPumpConfig;
     private _nibe1155: Nibe1155;
     private _state: HeatpumpControllerMode;
     private _desiredState: HeatpumpControllerMode;
@@ -52,7 +64,8 @@ export class HeatPump {
     private _modeEconomy: ModeEconomy;
     private _paramEconomy: { fMin: number, fMax: number, tMin: number, tMax: number } = { fMin: 26, fMax: 90, tMin: 20, tMax: 40 };
 
-    private constructor (nibe1155: Nibe1155) {
+    private constructor (nibe1155: Nibe1155, config?: IHeatPumpConfig) {
+        this._config = config || { disabled: true };
         this._nibe1155 = nibe1155;
         this._modeEconomy = new ModeEconomy(nibe1155);
         this._state = HeatpumpControllerMode.init;
@@ -60,9 +73,33 @@ export class HeatPump {
     }
 
 
-    public async start (desiredMode: HeatpumpControllerMode) {
+    public async start (startConfig?: IHeatPumpControllerStartConfig) {
+        if (this._config.disabled) {
+            debug.warn('Heatpump disabled -> skip starting');
+            this._state = HeatpumpControllerMode.disabled;
+            return;
+        }
         if (this._timer) { throw new Error('already started'); }
-        this._desiredState = desiredMode;
+        if ((!startConfig || startConfig.disabled) && Array.isArray(this._config.start)) {
+            for (const cfg of this._config.start) {
+                if (!cfg.disabled) {
+                    startConfig = cfg;
+                    break;
+                }
+            }
+        }
+        if (!startConfig || startConfig.disabled) {
+            debug.warn('invalid startConfig %o -> start in OFF', startConfig);
+            startConfig = { disabled: false, mode: HeatpumpControllerMode.off };
+        }
+        switch (startConfig.mode) {
+            case HeatpumpControllerMode.frequency: {
+                const f = (startConfig.fSetpoint >= 20 && startConfig.fSetpoint <= 90) ? startConfig.fSetpoint : 25;
+                this._fSetpoint = f;
+                break;
+            }
+        }
+        this._desiredState = startConfig.mode;
         this._timer = setInterval( () => this.handleStateMachine(), 2000);
         process.nextTick( () => this.handleStateMachine() );
     }
@@ -71,6 +108,7 @@ export class HeatPump {
         if (this._timer) { throw new Error('not started'); }
         clearInterval(this._timer);
         this._timer = null;
+        this._state = HeatpumpControllerMode.disabled;
     }
 
     public get state (): HeatpumpControllerMode {
@@ -240,7 +278,7 @@ export class HeatPump {
                 await this._nibe1155.writeDegreeMinutes(-60);
                 debugState.fine('setting DM=-60, wait for compressor starting ...');
             } else {
-                debugState.fine('DM=%s, checking if compressor is running ...');
+                debugState.fine('DM=%s, checking if compressor is running ...', this._nibe1155.degreeMinutes.value);
             }
             const now = Date.now();
             while ((Date.now() - now) < 90000) {

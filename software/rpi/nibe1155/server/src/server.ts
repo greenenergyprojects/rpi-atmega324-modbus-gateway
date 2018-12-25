@@ -1,6 +1,6 @@
 
 import * as debugsx from 'debug-sx';
-const debug: debugsx.IDefaultLogger = debugsx.createDefaultLogger('server');
+const debug: debugsx.IFullLogger = debugsx.createFullLogger('server');
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -88,9 +88,10 @@ export class Server {
         this._express.use('/node_modules', express.static(path.join(__dirname, '../node_modules')));
         // this._express.all('/*', (req, res, next) => this.handleAll(req, res, next));
         this._express.get('/*', (req, res, next) => this.handleGet(req, res, next));
+        this._express.use('/data', RouterData.getInstance());
+
         this._express.use((req, res, next) => Auth.getInstance().authorizeRequest(req, res, next));
         this._express.get('/auth', (req, res, next) => Auth.getInstance().handleGetAuth(<any>req, res, next));
-        this._express.use('/data', RouterData.getInstance());
         this._express.use('/modbus', RouterModbus.getInstance());
         this._express.use('/nibe', RouterNibe.getInstance());
         this._express.use('/', Router.getInstance());
@@ -174,7 +175,7 @@ export class Server {
     }
 
     private handleGet (req: express.Request, res: express.Response, next: express.NextFunction) {
-        debug.info(req.url);
+        debug.finer(req.url);
 
         if (req.url === '/' || req.url === '/index.html' || req.url.startsWith('/app') ) {
             const indexFileName = path.join(__dirname, '../../ngx/dist/ngx/index.html');

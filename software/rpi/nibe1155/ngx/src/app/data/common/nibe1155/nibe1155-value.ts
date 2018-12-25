@@ -33,7 +33,9 @@ export class Nibe1155Value extends DataRecord<INibe1155Value> implements INibe11
             for (const a of Object.getOwnPropertyNames(data)) {
                 if ( [ 'id' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseNumber(data, { attribute: a, validate: true, min: 0, max: 65535 } );
-                } else if ( [ 'value', 'recentValue', 'rawValue' ].indexOf(a) >= 0 ) {
+                } else if ( [ 'value', 'recentValue' ].indexOf(a) >= 0 ) {
+                    (<any>this)['_' + a] = DataRecord.parseNumber(data, { attribute: a, validate: true } );
+                } else if ( [ 'rawValue' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseNumber(data, { attribute: a, validate: true, min: 0 } );
                 } else if ( [ 'valueAt', 'recentValueAt' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseDate(data, { attribute: a, validate: true } );
@@ -76,7 +78,7 @@ export class Nibe1155Value extends DataRecord<INibe1155Value> implements INibe11
     }
 
     public get value (): number {
-        return this._value ? this._value : Number.NaN;
+        return (this._value || this._value === 0) ? this._value : Number.NaN;
     }
 
     public get valueAt (): Date {
@@ -84,7 +86,7 @@ export class Nibe1155Value extends DataRecord<INibe1155Value> implements INibe11
     }
 
     public get recentValue (): number {
-        return this._recentValue ? this._value : Number.NaN;
+        return (this._recentValue || this._recentValue === 0) ? this._recentValue : Number.NaN;
     }
 
     public get recentValueAt (): Date {
@@ -92,7 +94,7 @@ export class Nibe1155Value extends DataRecord<INibe1155Value> implements INibe11
     }
 
     public get rawValue (): number {
-        return this._rawValue ? this._rawValue : Number.NaN;
+        return (this._rawValue || this._rawValue === 0) ? this._rawValue : Number.NaN;
     }
 
     public get label (): string {

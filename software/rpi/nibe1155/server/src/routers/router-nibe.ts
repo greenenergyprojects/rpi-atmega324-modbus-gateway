@@ -90,7 +90,7 @@ export class RouterNibe {
         try {
             const rv: any = {};
             try {
-                rv.heatpump = HeatPump.Instance.toObject();
+                rv.heatpump = HeatPump.getInstance().toObject();
             } catch (err) {}
             try {
                 rv.nibe1155 = Nibe1155.Instance.toExtendedNibe1155ValuesObject();
@@ -109,7 +109,7 @@ export class RouterNibe {
             if (!x.pin || !Server.getInstance().isPinOK(x.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
             try {
                 delete x.pin;
-                const rv = await HeatPump.Instance.setDesiredMode(x);
+                const rv = await HeatPump.getInstance().setDesiredMode(x);
                 debug.fine('query %o -> response: %o', req.query, rv);
                 res.json(rv);
             } catch (err) {

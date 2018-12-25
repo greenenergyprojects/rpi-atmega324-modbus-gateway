@@ -1,6 +1,6 @@
 
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -80,17 +80,23 @@ let modbus: ModbusSerial;
 
 doStartup();
 
+export interface IStartModeConfig {
+    disabled?: boolean;
+    mode: 'off' | 'frequency';
+    fSetpoint?: number;
+}
+
 async function doHeatPumpControlling () {
-    const hp = HeatPump.Instance;
-    await hp.start(HeatpumpControllerMode.off);
-    await hp.setDesiredMode(new Nibe1155Controller({
-        createdAt: new Date(),
-        desiredMode: HeatpumpControllerMode.off,
-        fMin: 25,
-        fMax: 50,
-        tempMin: 35,
-        tempMax: 45
-    }));
+    const hp = HeatPump.getInstance();
+    // await hp.start(HeatpumpControllerMode.off);
+    // await hp.setDesiredMode(new Nibe1155Controller({
+    //     createdAt: new Date(),
+    //     desiredMode: HeatpumpControllerMode.off,
+    //     fMin: 25,
+    //     fMax: 50,
+    //     tempMin: 35,
+    //     tempMax: 45
+    // }));
 
 
     // Nibe1155.Instance.setPointDegreeMinutes = -5;
@@ -125,7 +131,7 @@ async function doHeatPumpControlling () {
 
 async function doStartup () {
 
-    await delay(1000);
+    await delay(2000);
     debug.info('Start of Home Control Server V' + VERSION);
     try {
         if (nconf.get('git')) {
@@ -139,9 +145,27 @@ async function doStartup () {
         try {
             Statistics.createInstance(nconf.get('statistics'));
             await Nibe1155.createInstance(modbus, nconf.get('nibe1155'));
-            await HeatPump.createInstance(Nibe1155.Instance);
+            await HeatPump.createInstance(Nibe1155.Instance, nconf.get('heat-pump'));
             await startupServer();
-            doHeatPumpControlling();
+            // doHeatPumpControlling();
+            const hp = HeatPump.getInstance();
+            await hp.start();
+            // const startModeConfig: IStartModeConfig = nconf.get('startmode');
+            // try {
+            //     if (!startModeConfig || startModeConfig.disabled === true) {
+            //         await hp.start(HeatpumpControllerMode.off);
+            //     } else {
+            //         await hp.setDesiredMode(new Nibe1155Controller({
+            //             createdAt: new Date(),
+            //             desiredMode: <HeatpumpControllerMode>startModeConfig.mode,
+            //             fSetpoint: startModeConfig.fSetpoint
+            //         }));
+            //         await hp.start( <HeatpumpControllerMode>startModeConfig.mode);
+            //     }
+            // } catch (err) {
+            //     debug.warn('Error on config startmode', err);
+            //     await hp.start(HeatpumpControllerMode.off);
+            // }
         } catch (err) {
             debug.warn(err);
         }

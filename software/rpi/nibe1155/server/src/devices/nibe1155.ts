@@ -1,7 +1,7 @@
 
 import * as debugsx from 'debug-sx';
 const debug: debugsx.IFullLogger = debugsx.createFullLogger('devices:Nibe1155');
-const debugEvent: debugsx.IDefaultLogger = debugsx.createDefaultLogger('Nibe1155.Event');
+const debugEvent: debugsx.IFullLogger = debugsx.createFullLogger('Nibe1155.Event');
 
 import * as fs from 'fs';
 import * as events from 'events';
@@ -297,8 +297,8 @@ export class Nibe1155 {
                 }
             }
         }
-        // debug.fine('LOGSet Ids: %o', this._logSetIds);
-        // debug.fine('Non LOGSet Ids: %o', this._nonLogSetRegs);
+        // debug.finer('LOGSet Ids: %o', this._logSetIds);
+        // debug.finer('Non LOGSet Ids: %o', this._nonLogSetRegs);
 
         // this._debugEventInfoIds.push(this._supplyPumpSpeed.id);
         // this._debugEventInfoIds.push(this._brinePumpSpeed.id);
@@ -1214,9 +1214,9 @@ export class Nibe1155 {
     }
 
     private async pollLogSetValues () {
-        debug.fine('start polling LOG.SET ids');
+        debug.finer('start polling LOG.SET ids');
         try {
-            const mr: INibe1155MonitorRecord = { values: {} };
+            const mr: INibe1155MonitorRecord = { createdAt: Date.now(), values: {} };
             for (let i = 0; i < this._logSetIds.length; i++) {
                 const firstAdd = this._logSetIds[i];
                 let lastAdd = firstAdd;
@@ -1322,7 +1322,7 @@ export class Nibe1155 {
             const vOld = { value: v.value, at: v.valueAt };
             const msg = sprintf('change-event - (%s) %s: %o -> %o', v.id, v.label, vOld, vNew);
             if (this._debugEventInfoIds.findIndex( (x) => x === v.id) === -1) {
-                debugEvent.fine(msg);
+                debugEvent.finer(msg);
             } else {
                 debugEvent.info(msg);
             }

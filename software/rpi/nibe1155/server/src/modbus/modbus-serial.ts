@@ -134,7 +134,7 @@ export class ModbusSerial {
                     this.handleError(r, new ModbusRequestError('serial interface error', err));
                 } else {
                     debug.finest('pending length = %s', this._pending.length);
-                    debug.fine('request written on serial interface (%o)', r.requ.request.buffer);
+                    debug.finer('request written on serial interface (%o)', r.requ.request.buffer);
                     r.requ.sentAt = new Date();
                     const toMillis =  r.requ.isLogSetRegister ? 500 + 300 : 2100 + 300;
                     debug.finest('set Timeout (modbusTimeout) ' + toMillis + 'ms');
