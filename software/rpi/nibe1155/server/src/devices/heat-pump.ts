@@ -82,6 +82,7 @@ export class HeatPump {
         if (this._timer) { throw new Error('already started'); }
         if ((!startConfig || startConfig.disabled) && Array.isArray(this._config.start)) {
             for (const cfg of this._config.start) {
+                debug.info('--> %o', cfg);
                 if (!cfg.disabled) {
                     startConfig = cfg;
                     break;
@@ -92,10 +93,13 @@ export class HeatPump {
             debug.warn('invalid startConfig %o -> start in OFF', startConfig);
             startConfig = { disabled: false, mode: HeatpumpControllerMode.off };
         }
+        debug.info('------> %o', startConfig);
         switch (startConfig.mode) {
             case HeatpumpControllerMode.frequency: {
                 const f = (startConfig.fSetpoint >= 20 && startConfig.fSetpoint <= 90) ? startConfig.fSetpoint : 25;
+                this._desiredFrequency = f;
                 this._fSetpoint = f;
+                debug.info('starting config frequency: f=%d', f);
                 break;
             }
         }
@@ -140,17 +144,16 @@ export class HeatPump {
     }
 
     public toObject (preserveDate = true): INibe1155Controller {
-        const rv: any = {
+        const rv: INibe1155Controller = {
             createdAt:        preserveDate ? new Date() : Date.now(),
             running:          this._timer !== undefined,
-            state:            this._state,
+            currentMode:      this._state,
             inProgressSince:  preserveDate ? this._inProgressSince : this._inProgressSince.getTime(),
-            setPointTemp:     this._setPointTemp,
-            fSetpoint:        this._fSetpoint,
-            desiredFrequency: this._desiredFrequency
+            tempSetpoint:     this._setPointTemp,
+            fSetpoint:        this._fSetpoint
         };
         if (this._state !== this._desiredState) {
-            rv.desiredState = this._desiredState;
+            rv.desiredMode = this._desiredState;
         }
         return rv;
     }

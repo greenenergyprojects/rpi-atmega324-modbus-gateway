@@ -38,7 +38,7 @@
 	"timeslotSeconds": 60,
 	"tmpFile": "/var/log/fronius/.tmpnibe1155",
         "dbtyp": "csvfile",
-	"csvfile": {
+	    "csvfile": {
             "filename": "/var/log/fronius/nibe1155-data_%Y-%M-%D.csv"
         }
     },

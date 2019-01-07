@@ -5,8 +5,10 @@ export enum HeatpumpControllerMode { off = 'off', init = 'init', frequency = 'fr
 
 export interface INibe1155Controller {
     createdAt: Date | number | string;
-    desiredMode: HeatpumpControllerMode;
+    desiredMode?: HeatpumpControllerMode;
     currentMode?: HeatpumpControllerMode;
+    running?: boolean;
+    inProgressSince?: Date | number | string;
     pin?: string;
     fSetpoint?: number;
     fMin?: number;
@@ -17,31 +19,33 @@ export interface INibe1155Controller {
 }
 export class Nibe1155Controller extends DataRecord<INibe1155Controller> implements INibe1155Controller {
 
-    private _createdAt:     Date;
-    private _desiredMode:   HeatpumpControllerMode;
-    private _currentMode?:  HeatpumpControllerMode;
-    private _pin?:          string;
-    private _fSetpoint?:    number;
-    private _fMin?:         number;
-    private _fMax?:         number;
-    private _tempSetpoint?: number;
-    private _tempMin?:      number;
-    private _tempMax?:      number;
+    private _createdAt:       Date;
+    private _desiredMode?:    HeatpumpControllerMode;
+    private _currentMode?:    HeatpumpControllerMode;
+    private _running?:        boolean;
+    private _inProgressSince: Date;
+    private _pin?:            string;
+    private _fSetpoint?:      number;
+    private _fMin?:           number;
+    private _fMax?:           number;
+    private _tempSetpoint?:   number;
+    private _tempMin?:        number;
+    private _tempMax?:        number;
 
     constructor (data: INibe1155Controller) {
         super(data);
         try {
-            const missing = DataRecord.getMissingAttributes( data, [ 'createdAt', 'desiredMode' ]);
+            const missing = DataRecord.getMissingAttributes( data, [ 'createdAt' ]);
             if (missing) {
                 throw new Error('missing attribute ' + missing);
             }
             let attCnt = 0;
             for (const a of Object.getOwnPropertyNames(data)) {
-                if ( [ 'createdAt' ].indexOf(a) >= 0 ) {
+                if ( [ 'createdAt', 'inProgressSince' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseDate(data, { attribute: a, validate: true } );
                 } else if ( [ 'fSetpoint', 'fMin', 'fMax', 'tempSetpoint', 'tempMin', 'tempMax' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseNumber(data, { attribute: a, validate: true, min: 0 } );
-                } else if ( [ '' ].indexOf(a) >= 0 ) {
+                } else if ( [ 'running' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseBoolean(data, { attribute: a, validate: true } );
                 } else if ( [ 'desiredMode', 'currentMode' ].indexOf(a) >= 0 ) {
                     (<any>this)['_' + a] = DataRecord.parseEnum<HeatpumpControllerMode>(
@@ -62,17 +66,19 @@ export class Nibe1155Controller extends DataRecord<INibe1155Controller> implemen
 
     public toObject (preserveDate = true): INibe1155Controller {
         const rv: INibe1155Controller = {
-            createdAt:   preserveDate ? this._createdAt : this._createdAt.getTime(),
-            desiredMode: this._desiredMode
+            createdAt: preserveDate ? this._createdAt : this._createdAt.getTime(),
         };
-        if (this._currentMode  !== undefined) { rv.currentMode  = this._currentMode; }
-        if (this._pin          !== undefined) { rv.pin          = this._pin; }
-        if (this._fSetpoint    !== undefined) { rv.fSetpoint    = this._fSetpoint; }
-        if (this._fMin         !== undefined) { rv.fMin         = this._fMin; }
-        if (this._fMax         !== undefined) { rv.fMax         = this._fMax; }
-        if (this._tempSetpoint !== undefined) { rv.tempSetpoint = this._tempSetpoint; }
-        if (this._tempMin      !== undefined) { rv.tempMin      = this._tempMin; }
-        if (this._tempMax      !== undefined) { rv.tempMax      = this._tempMax; }
+        if (this._running === true || this._running === false) { rv.running = this._running; }
+        if (this._currentMode     !== undefined) { rv.currentMode     = this._currentMode; }
+        if (this._desiredMode     !== undefined)  { rv.desiredMode    = this._desiredMode; }
+        if (this._inProgressSince !== undefined) { rv.inProgressSince = preserveDate ? this._inProgressSince : this._inProgressSince.getTime(); }
+        if (this._pin             !== undefined) { rv.pin             = this._pin; }
+        if (this._fSetpoint       !== undefined) { rv.fSetpoint       = this._fSetpoint; }
+        if (this._fMin            !== undefined) { rv.fMin            = this._fMin; }
+        if (this._fMax            !== undefined) { rv.fMax            = this._fMax; }
+        if (this._tempSetpoint    !== undefined) { rv.tempSetpoint    = this._tempSetpoint; }
+        if (this._tempMin         !== undefined) { rv.tempMin         = this._tempMin; }
+        if (this._tempMax         !== undefined) { rv.tempMax         = this._tempMax; }
         return rv;
     }
 
@@ -86,6 +92,14 @@ export class Nibe1155Controller extends DataRecord<INibe1155Controller> implemen
 
     public get currentMode (): HeatpumpControllerMode {
         return this._currentMode;
+    }
+
+    public get running (): boolean {
+        return this._running;
+    }
+
+    public get inProgressSince (): Date {
+        return this._inProgressSince;
     }
 
     public get pin (): string {

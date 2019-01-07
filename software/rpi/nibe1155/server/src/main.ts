@@ -1,6 +1,6 @@
 
 
-export const VERSION = '0.3.1';
+export const VERSION = '0.3.2';
 
 import * as fs from 'fs';
 import * as path from 'path';
