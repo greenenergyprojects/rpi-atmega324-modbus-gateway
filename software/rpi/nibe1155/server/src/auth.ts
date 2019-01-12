@@ -10,7 +10,7 @@ import * as jwt from 'jsonwebtoken';
 
 import { handleError, RouterError, BadRequestError, AuthenticationError, NotFoundError } from './routers/router-error';
 
-import { User, IUserLogin, IUserAuth } from './data/common/server/user';
+import { User, IUserLogin, IUserAuth } from './data/common/nibe1155/user';
 import { DbUser } from './db-user';
 
 
@@ -151,7 +151,10 @@ export class Auth {
             const userLogin = <IUserLogin>req.body;
             let authorizedByUserId: string;
             try {
-                DbUser.getInstance().verifyPassword(userLogin.userid, userLogin.password);
+                if (userLogin && userLogin.userid)  {
+                    userLogin.userid = userLogin.userid.toLowerCase();
+                }
+                DbUser.getInstance().verifyPassword(userLogin.userid, userLogin.password, userLogin.passwordType);
                 authorizedByUserId = userLogin.userid;
             } catch (err) {
                 if (Array.isArray(this._config.foreignLogin)) {

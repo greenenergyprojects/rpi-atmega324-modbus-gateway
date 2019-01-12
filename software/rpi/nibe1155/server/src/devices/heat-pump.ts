@@ -59,8 +59,8 @@ export class HeatPump {
 
     private _setPointTemp: number;
     private _fDiffChangeAt: number;
+    private _fTarget: number;
     private _fSetpoint: number;
-    private _desiredFrequency: number;
     private _modeEconomy: ModeEconomy;
     private _paramEconomy: { fMin: number, fMax: number, tMin: number, tMax: number } = { fMin: 26, fMax: 90, tMin: 20, tMax: 40 };
 
@@ -69,7 +69,7 @@ export class HeatPump {
         this._nibe1155 = nibe1155;
         this._modeEconomy = new ModeEconomy(nibe1155);
         this._state = HeatpumpControllerMode.init;
-        this._desiredFrequency = 30;
+        this._fSetpoint = 30;
     }
 
 
@@ -82,7 +82,6 @@ export class HeatPump {
         if (this._timer) { throw new Error('already started'); }
         if ((!startConfig || startConfig.disabled) && Array.isArray(this._config.start)) {
             for (const cfg of this._config.start) {
-                debug.info('--> %o', cfg);
                 if (!cfg.disabled) {
                     startConfig = cfg;
                     break;
@@ -93,12 +92,11 @@ export class HeatPump {
             debug.warn('invalid startConfig %o -> start in OFF', startConfig);
             startConfig = { disabled: false, mode: HeatpumpControllerMode.off };
         }
-        debug.info('------> %o', startConfig);
         switch (startConfig.mode) {
             case HeatpumpControllerMode.frequency: {
                 const f = (startConfig.fSetpoint >= 20 && startConfig.fSetpoint <= 90) ? startConfig.fSetpoint : 25;
-                this._desiredFrequency = f;
                 this._fSetpoint = f;
+                this._fTarget = f;
                 debug.info('starting config frequency: f=%d', f);
                 break;
             }
@@ -128,7 +126,7 @@ export class HeatPump {
             case 'frequency': {
                 if (!(mode.fSetpoint >= 20 && (mode.fSetpoint <= 90))) { throw new Error('illegal fSetpoint'); }
                 this._desiredState =  HeatpumpControllerMode.frequency;
-                this._desiredFrequency = mode.fSetpoint;
+                this._fSetpoint = mode.fSetpoint;
                 break;
             }
             default: throw new Error('unsupported mode ' + mode.desiredMode);
@@ -137,7 +135,7 @@ export class HeatPump {
             createdAt: new Date(),
             currentMode: this._state,
             desiredMode: this._desiredState,
-            fSetpoint: this._desiredFrequency
+            fSetpoint: this._fSetpoint
         };
         debug.info('setting desired mode %o', rv);
         return rv;
@@ -221,7 +219,7 @@ export class HeatPump {
         }
         if (this._recentState !== 'off') {
             debugState.info('start OFF');
-            this._fSetpoint = undefined;
+            this._fTarget = undefined;
             this._setPointTemp = undefined;
             this._fDiffChangeAt = undefined;
             await this._nibe1155.writeDegreeMinutes(1);
@@ -249,7 +247,7 @@ export class HeatPump {
                     debug.info('Nibe1155 shows no alarm');
                 }
             } catch (err) { debug.warn(err); }
-            this._fSetpoint = undefined;
+            this._fTarget = undefined;
             this._setPointTemp = undefined;
             this._fDiffChangeAt = undefined;
             await this._nibe1155.writeDegreeMinutes(1);
@@ -305,27 +303,27 @@ export class HeatPump {
             return HeatpumpControllerMode.off;
 
         } else {
-            const p1 = { x: 53, y: this._desiredFrequency };
+            const p1 = { x: 53, y: this._fSetpoint };
             const p2 = { x: 56, y: 26 };
-            let fSetpoint: number;
+            let fTarget: number;
             const tV = this._nibe1155.supplyS1Temp.value;
             if (tV < p1.x) {
-                fSetpoint = p1.y;
+                fTarget = p1.y;
             } else if (t >= p2.x) {
-                fSetpoint = p2.y;
+                fTarget = p2.y;
             } else {
                 const k = (p1.y - p2.y) / (p1.x - p2.x);
                 const d = p1.y - k * p1.x;
-                fSetpoint = Math.round(k * tV + d);
+                fTarget = Math.round(k * tV + d);
             }
-            this._fSetpoint = fSetpoint;
-            const diff = this._nibe1155.compressorFrequency.value - fSetpoint;
+            this._fTarget = fTarget;
+            const diff = this._nibe1155.compressorFrequency.value - fTarget;
             if (Math.abs(diff) > 3) {
                 if (!this._fDiffChangeAt || (this._fDiffChangeAt > 0 && (Date.now() - this._fDiffChangeAt) >= 10000)) {
                     const dm = diff > 0 ? Math.min(  -1, this._nibe1155.degreeMinutes.value + 10) :
                                           Math.max(-350, this._nibe1155.degreeMinutes.value - 10);
                     debug.info('fSetpoint on %s°C = %sHz out of range (f=%sHz), change degreeminutes to %s',
-                                tV, fSetpoint, this._nibe1155.compressorFrequency.value, dm);
+                                tV, fTarget, this._nibe1155.compressorFrequency.value, dm);
                     await this._nibe1155.writeDegreeMinutes(dm);
                     this._fDiffChangeAt = Date.now();
                 }
@@ -335,7 +333,7 @@ export class HeatPump {
 
         if ((t + 0.2) > this._setPointTemp || (t - 0.2) < this._setPointTemp) {
             this._setPointTemp = t + 0.1;
-            debug.info('Adjust setpoint temp to %s',  this._setPointTemp);
+            debug.finer('Adjust setpoint temp to %s',  this._setPointTemp);
             await this._nibe1155.writeHeatTempMin(this._setPointTemp);
             await this._nibe1155.writeHeatTempMax(this._setPointTemp);
         }
@@ -383,7 +381,7 @@ export class HeatPump {
             return HeatpumpControllerMode.off;
 
         } else {
-            this._fSetpoint = undefined;
+            this._fTarget = undefined;
             const min = -100;
             const max = -100;
             if (this._nibe1155.degreeMinutes.value < min) {

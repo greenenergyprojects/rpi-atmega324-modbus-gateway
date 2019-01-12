@@ -12,14 +12,14 @@ import { handleError, RouterError, BadRequestError, AuthenticationError } from '
 import { Nibe1155 } from '../devices/nibe1155';
 import { HeatPump } from '../devices/heat-pump';
 import { Server } from '../server';
-import { INibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
+import { INibe1155Controller, Nibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
 
 
 export class RouterNibe {
 
     public static getInstance(): express.Router {
         if (!this._instance) {
-            this._instance = new RouterNibe;
+            this._instance = new RouterNibe();
         }
         return this._instance._router;
     }
@@ -32,16 +32,18 @@ export class RouterNibe {
 
     private constructor () {
         this._router = express.Router();
-        this._router.get('/register', (req, res, next) => this.getRegister(req, res, next));
-        this._router.get('/status', (req, res, next) => this.getStatus(req, res, next));
+        // this._router.all('/*', (req, res, next) => this.all(req, res, next));
+        // this._router.get('/register', (req, res, next) => this.getRegister(req, res, next));
+        // this._router.get('/status', (req, res, next) => this.getStatus(req, res, next));
         this._router.post('/mode', (req, res, next) => this.postMode(req, res, next));
-        // this._router.get('/*', (req, res, next) => this.getAll(req, res, next));
-
     }
 
-    private async getAll (req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async all (req: express.Request, res: express.Response, next: express.NextFunction) {
         try {
-            res.send('OK');
+            // res.send('OK');
+            debug.info('---> %s', req.url);
+            debugger;
+            next();
         } catch (err) {
             handleError(err, req, res, next, debug);
         }
@@ -104,13 +106,12 @@ export class RouterNibe {
 
     private async postMode (req: express.Request, res: express.Response, next: express.NextFunction) {
         try {
-            const x: INibe1155Controller = req.body;
-            if (!x || !x.createdAt || !x.desiredMode) { throw new BadRequestError('invalid body'); }
-            if (!x.pin || !Server.getInstance().isPinOK(x.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
+            const body: INibe1155Controller = req.body;
+            if (body.pin && !Server.getInstance().isPinOK(body.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
             try {
-                delete x.pin;
+                const x = new Nibe1155Controller(body);
                 const rv = await HeatPump.getInstance().setDesiredMode(x);
-                debug.fine('query %o -> response: %o', req.query, rv);
+                debug.fine('%s %s %s%s %o -> response: %o', req.method, req.host, req.baseUrl, req.url, body, rv);
                 res.json(rv);
             } catch (err) {
                 throw new BadRequestError('cannot set mode', err);

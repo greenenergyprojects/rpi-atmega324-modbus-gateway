@@ -22,7 +22,7 @@ export class RouterData {
 
     public static getInstance(): express.Router {
         if (!this._instance) {
-            this._instance = new RouterData;
+            this._instance = new RouterData();
         }
         return this._instance._router;
     }
@@ -91,7 +91,6 @@ export class RouterData {
                     rv.values[<Nibe1155ModbusIds>id] = v instanceof Nibe1155Value ? v.toObject() : null;
                 }
             }
-            debug.fine('--> query %o -> response: %o', query, rv);
             debug.finer('query %o -> response: %o', query, rv);
             res.json(rv);
         } catch (err) {

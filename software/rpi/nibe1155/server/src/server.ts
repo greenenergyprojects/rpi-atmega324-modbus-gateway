@@ -23,6 +23,7 @@ import { RouterData } from './routers/router-data';
 import { RouterModbus } from './routers/router-modbus';
 import { RouterNibe } from './routers/router-nibe';
 import { Router } from './routers/router';
+import { url } from 'inspector';
 
 interface IServerConfig {
     start: boolean;
@@ -81,25 +82,25 @@ export class Server {
         }
         this._express.use(bodyParser.json());
         this._express.use(bodyParser.urlencoded({ extended: true }) );
-
+        // this._express.all('/*', (req, res, next) => this.all(req, res, next));
         this._express.use('/version', (req, res, next) => this.handleVersion(req, res, next));
         this._express.post('/auth', (req, res, next) => Auth.getInstance().handlePostAuth(req, res, next));
 
-        this._express.use('/node_modules', express.static(path.join(__dirname, '../node_modules')));
-        // this._express.all('/*', (req, res, next) => this.handleAll(req, res, next));
+        // this._express.use('/node_modules', express.static(path.join(__dirname, '../node_modules')));
+        // // this._express.all('/*', (req, res, next) => this.handleAll(req, res, next));
         this._express.get('/*', (req, res, next) => this.handleGet(req, res, next));
         this._express.use('/data', RouterData.getInstance());
 
-        this._express.use((req, res, next) => Auth.getInstance().authorizeRequest(req, res, next));
-        this._express.get('/auth', (req, res, next) => Auth.getInstance().handleGetAuth(<any>req, res, next));
-        this._express.use('/modbus', RouterModbus.getInstance());
+        // this._express.use((req, res, next) => Auth.getInstance().authorizeRequest(req, res, next));
+        // this._express.get('/auth', (req, res, next) => Auth.getInstance().handleGetAuth(<any>req, res, next));
+        // this._express.use('/modbus', RouterModbus.getInstance());
         this._express.use('/nibe', RouterNibe.getInstance());
-        this._express.use('/', Router.getInstance());
+        // this._express.use('/', Router.getInstance());
 
-        this._express.use('/ngx', express.static(path.join(__dirname, '../../ngx/dist')));
-        this._express.use('/assets', express.static(path.join(__dirname, '../../ngx/dist/assets')));
+        // this._express.use('/ngx', express.static(path.join(__dirname, '../../ngx/dist')));
+        // this._express.use('/assets', express.static(path.join(__dirname, '../../ngx/dist/assets')));
 
-        this._express.all('*', (req, res, next) => this.handleNotFound(req, res, next));
+        // this._express.all('*', (req, res, next) => this.handleNotFound(req, res, next));
         this._express.use(
             (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => this.errorHandler(err, req, res, next)
         );
@@ -122,6 +123,11 @@ export class Server {
 
     public isPinOK (pin: string): boolean {
         return typeof this._config.pin === 'string' && this._config.pin.length === 4 && this._config.pin === pin;
+    }
+
+    private async all (req: express.Request, res: express.Response, next: express.NextFunction) {
+        debug.info('---> %s %s %s', req.method, req.host, req.originalUrl);
+        next();
     }
 
     private handleNotFound (req: express.Request, res: express.Response, next: express.NextFunction) {
