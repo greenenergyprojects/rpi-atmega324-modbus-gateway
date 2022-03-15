@@ -81,16 +81,16 @@ export class Nibe1155Value extends DataRecord<INibe1155Value> implements INibe11
         return (this._value || this._value === 0) ? this._value : Number.NaN;
     }
 
-    public get valueAt (): Date {
-        return this._valueAt ? this._valueAt : new Date();
+    public get valueAt (): Date | null {
+        return this._valueAt ? this._valueAt : null;
     }
 
     public get recentValue (): number {
         return (this._recentValue || this._recentValue === 0) ? this._recentValue : Number.NaN;
     }
 
-    public get recentValueAt (): Date {
-        return this._recentValueAt ? this._recentValueAt : new Date();
+    public get recentValueAt (): Date | null {
+        return this._recentValueAt ? this._recentValueAt : null;
     }
 
     public get rawValue (): number {

@@ -1,0 +1,85 @@
+156487529400311
+Project
+IDC_2x3x2.54mm_Straight
+http://www.farnell.com/datasheets/1520732.pdf
+connector multicomp MC9A MC9A12
+0
+6
+6
+Project
+Jumper_3x_2x03_Pitch2.54mm
+Through hole straight pin header, 2x03, 2.54mm pitch, double rows
+Through hole pin header THT 2x03 2.54mm double row
+0
+6
+6
+Project
+RPI_DEBUG_4x20
+
+Raspberry RPI
+0
+80
+40
+Project
+RPI_DINRAILBOX_4TE_72mmx91mm
+Raspberry PI 2+
+Raspberry RPI
+0
+40
+40
+Project
+RPI_DINRAILBOX_4TE_72mmx91mm_DEBUG
+Raspberry PI 2+
+Raspberry RPI
+0
+120
+40
+Project
+SOIC-8_3.9x4.9mm_Pitch1.27mm_Handsolded
+8-Lead Plastic Small Outline (SN) - Narrow, 3.90 mm Body [SOIC] (see Microchip Packaging Specification 00000049BS.pdf)
+SOIC 1.27
+0
+8
+8
+Project
+SOLDER-JUMPER_1-WAY
+
+
+0
+2
+2
+Project
+SOLDER-JUMPER_2-WAY
+
+
+0
+3
+3
+Project
+SW-ebay-171865305033
+slide switch, 3 postions
+Slide Switch 3 positions, 2,54mm
+0
+3
+3
+Project
+TQFP-44_10x10mm_Pitch0.8mm_Handsolded
+44-Lead Plastic Thin Quad Flatpack (PT) - 10x10x1.0 mm Body [TQFP] (see Microchip Packaging Specification 00000049BS.pdf)
+QFP 0.8
+0
+44
+44
+Project
+Terminalblock-2x-5mm
+2-way 2.54mm pitch terminal block, Phoenix MPT series
+
+0
+2
+2
+Project
+ebay-253052736386
+DC Converter VIN 2V8 to 5V5, VOUT +/-12V
+DC Converter
+0
+5
+5

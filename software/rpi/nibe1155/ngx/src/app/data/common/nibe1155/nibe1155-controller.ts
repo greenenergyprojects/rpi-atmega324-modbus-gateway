@@ -1,7 +1,7 @@
 
 import { DataRecord } from '../data-record';
 
-export enum HeatpumpControllerMode { off = 'off', init = 'init', frequency = 'frequency', test = 'test', error = 'error', disabled = 'disabled' }
+export enum HeatpumpControllerMode { off = 'off', init = 'init', frequency = 'frequency', test = 'test', error = 'error', disabled = 'disabled', auto='auto' }
 
 export interface INibe1155Controller {
     createdAt: Date | number | string;

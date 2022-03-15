@@ -18,11 +18,11 @@ export type Nibe1155ModbusIds =
     40008 | 40012 | 40015 | 40016 | 40017 | 40018 | 40019 | 40022 | 40071 |
     43005 | 43009 | 43084 | 43136 | 43141 | 43427 | 43431 | 43433 | 43437 | 43439 |
     // normal register (high polling time)
-    40004 | 40033 | 40067 | 40079 | 40081 | 40083 |
+    40004 | 40033 | 40067 | 40079 | 40080 | 40081 | 40082 | 40083 | 40084 |
     42439 | 42447 | 43182 | 43375 | 43416 | 43420 | 45001 | 45171 |
     47007 | 47011 | 47015 | 47019 | 47020 | 47021 | 47022 | 47023 | 47024 | 47025 | 47026 |
     47100 | 47103 | 47104 |
-    47137 | 47138 | 47139 | 47206 | 47209 | 47212 | 47214 | 47370 | 47371 | 47376 | 47375 |
+    47137 | 47138 | 47139 | 47206 | 47209 | 47210 | 47212 | 47214 | 47370 | 47371 | 47376 | 47375 |
     48072 | 48453 |
     48659 | 48660 | 48661 | 48662 | 48663 | 48664;
 
@@ -49,9 +49,12 @@ export interface INibe1155Labels {
     outdoorTemp:            INibe1155Definition;
     roomTemp:               INibe1155Definition;
     outdoorTempAverage:     INibe1155Definition;
-    currentL1:              INibe1155Definition;
-    currentL2:              INibe1155Definition;
-    currentL3:              INibe1155Definition;
+    currentL1H:             INibe1155Definition;
+    currentL1L:             INibe1155Definition;
+    currentL2H:             INibe1155Definition;
+    currentL2L:             INibe1155Definition;
+    currentL3H:             INibe1155Definition;
+    currentL3L:             INibe1155Definition;
     energyCompAndElHeater:  INibe1155Definition;
     energyCompressor:       INibe1155Definition;
     compFrequTarget:        INibe1155Definition;
@@ -79,6 +82,7 @@ export interface INibe1155Labels {
     brinePumpMode:          INibe1155Definition;
     dmStartHeating:         INibe1155Definition;
     addHeatingStep:         INibe1155Definition;
+    addHeatingStartDm:      INibe1155Definition;
     addHeatingMaxPower:     INibe1155Definition;
     addHeatingFuse:         INibe1155Definition;
     allowAdditiveHeating:   INibe1155Definition;
@@ -126,9 +130,16 @@ export class Nibe1155ModbusRegisters {
         , 40004: { id: 40004, isLogset: false, label: 'outdoorTemp',            classname: 'Nibe1155Value',                type: 'R',   unit: '°C',  size: 's16', factor: 10,   format: '%-5.01f', description: 'Outdoor temperature (BT1)', help: 'Außentemperatur'}
         , 40033: { id: 40033, isLogset: false, label: 'roomTemp',               classname: 'Nibe1155Value',                type: 'R',   unit: '°C',  size: 's16', factor: 10,   format: '%-4.01f', description: 'Room Temperature S1 (BT50)', help: 'Innentemperatur' }
         , 40067: { id: 40067, isLogset: false, label: 'outdoorTempAverage',     classname: 'Nibe1155Value',                type: 'R',   unit: '°C',  size: 's16', factor: 10,   format: '%-4.01f', description: 'Outdoor Temperature (BT1) average', help: 'Gemittelte Außentemperatur' }
-        , 40079: { id: 40079, isLogset: false, label: 'currentL1',              classname: 'Nibe1155Value',                type: 'R',   unit: 'A',   size: 'u32', factor: 10,   format: '%-4.01f', description: 'Electrical Heater current L1', help: '' }
-        , 40081: { id: 40081, isLogset: false, label: 'currentL2',              classname: 'Nibe1155Value',                type: 'R',   unit: 'A',   size: 'u32', factor: 10,   format: '%-4.01f', description: 'Electrical Heater current L2', help: '' }
-        , 40083: { id: 40083, isLogset: false, label: 'currentL3',              classname: 'Nibe1155Value',                type: 'R',   unit: 'A',   size: 'u32', factor: 10,   format: '%-4.01f', description: 'Electrical Heater current L3', help: '' }
+        // , 40079: { id: 40079, isLogset: false, label: 'currentL1',              classname: 'Nibe1155Value',                type: 'R',   unit: 'A',   size: 'u32', factor: 10,   format: '%-4.01f', description: 'Electrical Heater current L1', help: '' }
+        // , 40081: { id: 40081, isLogset: false, label: 'currentL2',              classname: 'Nibe1155Value',                type: 'R',   unit: 'A',   size: 'u32', factor: 10,   format: '%-4.01f', description: 'Electrical Heater current L2', help: '' }
+        // , 40083: { id: 40083, isLogset: false, label: 'currentL3',              classname: 'Nibe1155Value',                type: 'R',   unit: 'A',   size: 'u32', factor: 10,   format: '%-4.01f', description: 'Electrical Heater current L3', help: '' }
+        , 40079: { id: 40079, isLogset: false, label: 'currentL1H',             classname: 'Nibe1155Value',                type: 'R',   unit: '',    size: 'u16', factor: 1,   format: '%-4.01f', description: 'Electrical Heater current L1H', help: '' }
+        , 40080: { id: 40080, isLogset: false, label: 'currentL1L',             classname: 'Nibe1155Value',                type: 'R',   unit: '',    size: 'u16', factor: 1,   format: '%-4.01f', description: 'Electrical Heater current L1L', help: '' }
+        , 40081: { id: 40081, isLogset: false, label: 'currentL2H',             classname: 'Nibe1155Value',                type: 'R',   unit: '',    size: 'u16', factor: 1,   format: '%-4.01f', description: 'Electrical Heater current L2H', help: '' }
+        , 40082: { id: 40082, isLogset: false, label: 'currentL2L',             classname: 'Nibe1155Value',                type: 'R',   unit: '',    size: 'u16', factor: 1,   format: '%-4.01f', description: 'Electrical Heater current L2L', help: '' }
+        , 40083: { id: 40083, isLogset: false, label: 'currentL3H',             classname: 'Nibe1155Value',                type: 'R',   unit: '',    size: 'u16', factor: 1,   format: '%-4.01f', description: 'Electrical Heater current L3H', help: '' }
+        , 40084: { id: 40084, isLogset: false, label: 'currentL3L',             classname: 'Nibe1155Value',                type: 'R',   unit: '',    size: 'u16', factor: 1,   format: '%-4.01f', description: 'Electrical Heater current L3L', help: '' }
+
         , 42439: { id: 42439, isLogset: false, label: 'energyCompAndElHeater',  classname: 'Nibe1155Value',                type: 'R',   unit: 'Wh',  size: 'u32', factor: 10000,   format: '%-5.01f', description: 'Accumulated energy total', help: '' }
         , 42447: { id: 42447, isLogset: false, label: 'energyCompressor',       classname: 'Nibe1155Value',                type: 'R',   unit: 'Wh',  size: 'u32', factor: 10000,   format: '%-5.01f', description: 'Accumulated energy compressor', help: '' }
         , 43182: { id: 43182, isLogset: false, label: 'compFrequTarget',        classname: 'Nibe1155Value',                type: 'R',   unit: 'Hz',  size: 'u16', factor: 1,    format: '%-3d',    description: 'Compressor frequency before cut off', help: '' }
@@ -156,6 +167,7 @@ export class Nibe1155ModbusRegisters {
         , 47139: { id: 47139, isLogset: false, label: 'brinePumpMode',          classname: 'Nibe1155PumpModeValue',        type: 'R/W', unit: '',    size: 'u8',  factor: 1,    format: '%2d',     description: 'Operation mode of brine pump', help: '10=intermittent, 20=continous, 30=economy, 40=auto' }
         , 47206: { id: 47206, isLogset: false, label: 'dmStartHeating',         classname: 'Nibe1155Value',                type: 'R/W', unit: '',    size: 's16', factor: 1,    format: '%6d',     description: 'Degree minutes for start of heating (compressro)', help: '-1000 .. -30' }
         , 47209: { id: 47209, isLogset: false, label: 'addHeatingStep',         classname: 'Nibe1155Value',                type: 'R/W', unit: '',    size: 's16', factor: 1,    format: '%6d',     description: 'Degree minutes for next step of additional heater', help: '' }
+        , 47210: { id: 47210, isLogset: false, label: 'addHeatingStartDm',      classname: 'Nibe1155Value',                type: 'R/W', unit: '',    size: 's16', factor: 1,    format: '%4d',     description: 'Degree minutes for start of additional heater', help: '' }
         , 47212: { id: 47212, isLogset: false, label: 'addHeatingMaxPower',     classname: 'Nibe1155Value',                type: 'R/W', unit: 'W',   size: 's16', factor: 0.1,  format: '%4.02f',  description: 'Maximal power of additional heater', help: '0W ... 6000W' }
         , 47214: { id: 47214, isLogset: false, label: 'addHeatingFuse',         classname: 'Nibe1155Value',                type: 'R/W', unit: 'A',   size: 'u16', factor: 1,    format: '%3d',     description: 'Fuse current for heater', help: '0A ... 400A' }
         , 47370: { id: 47370, isLogset: false, label: 'allowAdditiveHeating',   classname: 'Nibe1155Value',                type: 'R/W', unit: '',    size: 'u8',  factor: 1,    format: '%1d',     description: 'Allow electrical heating', help: '0 .. 1' }
@@ -197,9 +209,12 @@ export class Nibe1155ModbusRegisters {
         , outdoorTemp:            Nibe1155ModbusRegisters.regDefById[40004]
         , roomTemp:               Nibe1155ModbusRegisters.regDefById[40033]
         , outdoorTempAverage:     Nibe1155ModbusRegisters.regDefById[40067]
-        , currentL1:              Nibe1155ModbusRegisters.regDefById[40079]
-        , currentL2:              Nibe1155ModbusRegisters.regDefById[40081]
-        , currentL3:              Nibe1155ModbusRegisters.regDefById[40083]
+        , currentL1H:             Nibe1155ModbusRegisters.regDefById[40079]
+        , currentL1L:             Nibe1155ModbusRegisters.regDefById[40080]
+        , currentL2H:             Nibe1155ModbusRegisters.regDefById[40081]
+        , currentL2L:             Nibe1155ModbusRegisters.regDefById[40082]
+        , currentL3H:             Nibe1155ModbusRegisters.regDefById[40083]
+        , currentL3L:             Nibe1155ModbusRegisters.regDefById[40084]
         , energyCompAndElHeater:  Nibe1155ModbusRegisters.regDefById[42439]
         , energyCompressor:       Nibe1155ModbusRegisters.regDefById[42447]
         , compFrequTarget:        Nibe1155ModbusRegisters.regDefById[43182]
@@ -227,6 +242,7 @@ export class Nibe1155ModbusRegisters {
         , brinePumpMode:          Nibe1155ModbusRegisters.regDefById[47139]
         , dmStartHeating:         Nibe1155ModbusRegisters.regDefById[47206]
         , addHeatingStep:         Nibe1155ModbusRegisters.regDefById[47209]
+        , addHeatingStartDm:      Nibe1155ModbusRegisters.regDefById[47210]
         , addHeatingMaxPower:     Nibe1155ModbusRegisters.regDefById[47212]
         , addHeatingFuse:         Nibe1155ModbusRegisters.regDefById[47214]
         , allowAdditiveHeating:   Nibe1155ModbusRegisters.regDefById[47370]

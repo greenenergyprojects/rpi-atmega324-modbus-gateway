@@ -1,0 +1,6 @@
+{
+    "disabled": false,
+    "host": "rpi",
+    "targetPath": "/home/pi/nibe1155/server"
+}
+

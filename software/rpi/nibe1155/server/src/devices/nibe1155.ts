@@ -46,9 +46,12 @@ export interface IExtendedNibe1155Values extends INibe1155Values {
     outdoorTemp:            string;
     roomTemp:               string;
     outdoorTempAverage:     string;
-    currentL1:              string;
-    currentL2:              string;
-    currentL3:              string;
+    currentL1H:              string;
+    currentL1L:              string;
+    currentL2H:              string;
+    currentL2L:              string;
+    currentL3H:              string;
+    currentL3L:              string;
     energyCompAndElHeater:  string;
     energyCompressor:       string;
     compFrequTarget:        string;
@@ -75,6 +78,7 @@ export interface IExtendedNibe1155Values extends INibe1155Values {
     supplyPumpMode:         string;
     brinePumpMode:          string;
     dmStartHeating:         string;
+    addHeatingStartDm:      string;
     addHeatingStep:         string;
     addHeatingMaxPower:     string;
     addHeatingFuse:         string;
@@ -163,9 +167,12 @@ export class Nibe1155 {
     private _outdoorTemp:            Nibe1155Value;
     private _roomTemp:               Nibe1155Value;
     private _outdoorTempAverage:     Nibe1155Value;
-    private _currentL1:              Nibe1155Value;
-    private _currentL2:              Nibe1155Value;
-    private _currentL3:              Nibe1155Value;
+    private _currentL1H:             Nibe1155Value;
+    private _currentL1L:             Nibe1155Value;
+    private _currentL2H:             Nibe1155Value;
+    private _currentL2L:             Nibe1155Value;
+    private _currentL3H:             Nibe1155Value;
+    private _currentL3L:             Nibe1155Value;
     private _energyCompAndElHeater:  Nibe1155Value;
     private _energyCompressor:       Nibe1155Value;
     private _compFrequTarget:        Nibe1155Value;
@@ -192,6 +199,7 @@ export class Nibe1155 {
     private _supplyPumpMode:         Nibe1155PumpModeValue;
     private _brinePumpMode:          Nibe1155PumpModeValue;
     private _dmStartHeating:         Nibe1155Value;
+    private _addHeatingStartDm:      Nibe1155Value;
     private _addHeatingStep:         Nibe1155Value;
     private _addHeatingMaxPower:     Nibe1155Value;
     private _addHeatingFuse:         Nibe1155Value;
@@ -241,9 +249,12 @@ export class Nibe1155 {
         this._outdoorTemp            = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.outdoorTemp.id });
         this._roomTemp               = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.roomTemp.id });
         this._outdoorTempAverage     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.outdoorTempAverage.id });
-        this._currentL1              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL1.id });
-        this._currentL2              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL2.id });
-        this._currentL3              = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL3.id });
+        this._currentL1H             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL1H.id });
+        this._currentL1L             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL1L.id });
+        this._currentL2H             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL2H.id });
+        this._currentL2L             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL2L.id });
+        this._currentL3H             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL3H.id });
+        this._currentL3L             = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.currentL3L.id });
         this._energyCompAndElHeater  = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.energyCompAndElHeater.id });
         this._energyCompressor       = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.energyCompressor.id });
         this._compFrequTarget        = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.compFrequTarget.id });
@@ -270,6 +281,7 @@ export class Nibe1155 {
         this._supplyPumpMode         = new Nibe1155PumpModeValue({ id: Nibe1155ModbusRegisters.regDefByLabel.supplyPumpMode.id });
         this._brinePumpMode          = new Nibe1155PumpModeValue({ id: Nibe1155ModbusRegisters.regDefByLabel.brinePumpMode.id });
         this._dmStartHeating         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.dmStartHeating.id });
+        this._addHeatingStartDm      = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingStartDm.id });
         this._addHeatingStep         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingStep.id });
         this._addHeatingMaxPower     = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingMaxPower.id });
         this._addHeatingFuse         = new Nibe1155Value({ id: Nibe1155ModbusRegisters.regDefByLabel.addHeatingFuse.id });
@@ -347,16 +359,47 @@ export class Nibe1155 {
         try {
             const x = this._idMap[id];
             if (!x) { throw new Error('invalid id ' + id); }
-            if (notOlderThanMillis === undefined) {
-                return x.value;
-            } else if ( notOlderThanMillis > 0 && x.valueAt instanceof Date) {
-                const dt = Date.now() - x.valueAt.getTime();
-                if (dt <= notOlderThanMillis) {
+            if (x.valueAt instanceof Date) {
+                if (notOlderThanMillis === undefined) {
                     return x.value;
+                } else if ( notOlderThanMillis > 0) {
+                    const dt = Date.now() - x.valueAt.getTime();
+                    if (dt <= notOlderThanMillis) {
+                        return x.value;
+                    }
                 }
             }
             await this.readRegister(x);
             return x.value;
+        } catch (err) {
+            debug.finest(err);
+            throw err;
+        }
+    }
+
+    public async readRegisterValue (id: number, showModbus?: boolean): Promise<number> {
+        try {
+            const x = this._idMap[id];
+            if (!x) { throw new Error('invalid id ' + id); }
+            const rv = await this.readRegister(x);
+            if (showModbus) {
+                console.log('=== readRegisterValue ====>', x.value, ' ===> ', rv);
+            }
+            return x.value;
+        } catch (err) {
+            debug.finest(err);
+            throw err;
+        }
+    }
+
+    public async writeRegisterValue (id: number, value: number, showModbus?: boolean): Promise<void> {
+        try {
+            const x = this._idMap[id];
+            if (!x) { throw new Error('invalid id ' + id); }
+            const rv = await this.writeRegister(x, value);
+            if (showModbus) {
+                console.log('==== writeRegisterValue ============> ', x, rv);
+            }
         } catch (err) {
             debug.finest(err);
             throw err;
@@ -383,15 +426,23 @@ export class Nibe1155 {
     }
 
     public async readCurrentL1 (notOlderThanMillis?: number): Promise<number> {
-        return this.getRegisterValue(this._currentL1.id, notOlderThanMillis);
+        const currH = await this.getRegisterValue(this._currentL1H.id, notOlderThanMillis);
+        const currL = await this.getRegisterValue(this._currentL1L.id, notOlderThanMillis);
+        return currH * 65_536 + currL;
     }
 
     public async readCurrentL2 (notOlderThanMillis?: number): Promise<number> {
-        return this.getRegisterValue(this._currentL2.id, notOlderThanMillis);
+        const currH = await this.getRegisterValue(this._currentL2H.id, notOlderThanMillis);
+        const currL = await this.getRegisterValue(this._currentL2L.id, notOlderThanMillis);
+        return currH * 65_536 + currL;
+
     }
 
     public async readCurrentL3 (notOlderThanMillis?: number): Promise<number> {
-        return this.getRegisterValue(this._currentL3.id, notOlderThanMillis);
+        const currH = await this.getRegisterValue(this._currentL3H.id, notOlderThanMillis);
+        const currL = await this.getRegisterValue(this._currentL3L.id, notOlderThanMillis);
+        return currH * 65_536 + currL;
+
     }
 
     public async readEnergyCompAndElHeater (notOlderThanMillis?: number): Promise<number> {
@@ -464,6 +515,31 @@ export class Nibe1155 {
         return this.getRegisterValue(this._regMaxCompFrequ.id, notOlderThanMillis);
     }
 
+
+    public async getRegisterValueTest (id: number, notOlderThanMillis?: number): Promise<number> {
+        try {
+            const x = this._idMap[id];
+            if (!x) { throw new Error('invalid id ' + id); }
+            console.log('----> ? ', x);
+            if (x.valueAt instanceof Date && notOlderThanMillis === undefined) {
+                console.log('---> 1');
+                return x.value;
+            } else if ( notOlderThanMillis > 0 && x.valueAt instanceof Date) {
+                const dt = Date.now() - x.valueAt.getTime();
+                if (dt <= notOlderThanMillis) {
+                    console.log('---> 2');
+                    return x.value;
+                }
+            }
+            console.log('---> do it');
+            await this.readRegister(x);
+            return x.value;
+        } catch (err) {
+            debug.finest(err);
+            throw err;
+        }
+    }
+
     public async read_operationalMode (notOlderThanMillis?: number): Promise<'auto' | 'manual' | 'add heat only' | '?'> {
         const x = await this.getRegisterValue(this._operationalMode.id, notOlderThanMillis);
         switch (x) {
@@ -530,6 +606,10 @@ export class Nibe1155 {
 
     public async readDMStartHeating (notOlderThanMillis?: number): Promise<number> {
         return this.getRegisterValue(this._dmStartHeating.id, notOlderThanMillis);
+    }
+
+    public async readAddHeatingStartDm (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._addHeatingStartDm.id, notOlderThanMillis);
     }
 
     public async readAddHeatingStep (notOlderThanMillis?: number): Promise<number> {
@@ -788,6 +868,12 @@ export class Nibe1155 {
         return this.writeRegister(this._dmStartHeating, Math.round(degreeMinutes));
     }
 
+    public async writeAddHeatingStartDm (degreeMinutes: number): Promise<ModbusRequest> {
+        degreeMinutes = Math.max(-32768, degreeMinutes);
+        degreeMinutes = Math.min( 32767, degreeMinutes);
+        return this.writeRegister(this._addHeatingStartDm, Math.round(degreeMinutes));
+    }
+
     public async writeAddHeatingStep (degreeMinutes: number): Promise<ModbusRequest> {
         degreeMinutes = Math.max(-32768, degreeMinutes);
         degreeMinutes = Math.min( 32767, degreeMinutes);
@@ -1034,9 +1120,12 @@ export class Nibe1155 {
             outdoorTemp:            this._outdoorTemp.valueAsString(true),
             roomTemp:               this._roomTemp.valueAsString(true),
             outdoorTempAverage:     this._outdoorTempAverage.valueAsString(true),
-            currentL1:              this._currentL1.valueAsString(true),
-            currentL2:              this._currentL2.valueAsString(true),
-            currentL3:              this._currentL3.valueAsString(true),
+            currentL1H:             this._currentL1H.valueAsString(true),
+            currentL1L:             this._currentL2L.valueAsString(true),
+            currentL2H:             this._currentL3H.valueAsString(true),
+            currentL2L:             this._currentL1L.valueAsString(true),
+            currentL3H:             this._currentL2H.valueAsString(true),
+            currentL3L:             this._currentL3L.valueAsString(true),
             energyCompAndElHeater:  this._energyCompAndElHeater.valueAsString(true),
             energyCompressor:       this._energyCompressor.valueAsString(true),
             compFrequTarget:        this._compFrequTarget.valueAsString(true),
@@ -1063,6 +1152,7 @@ export class Nibe1155 {
             supplyPumpMode:         this._supplyPumpMode.valueAsString(true),
             brinePumpMode:          this._brinePumpMode.valueAsString(true),
             dmStartHeating:         this._dmStartHeating.valueAsString(true),
+            addHeatingStartDm:      this._addHeatingStartDm.valueAsString(true),
             addHeatingStep:         this._addHeatingStep.valueAsString(true),
             addHeatingMaxPower:     this._addHeatingMaxPower.valueAsString(true),
             addHeatingFuse:         this._addHeatingFuse.valueAsString(true),

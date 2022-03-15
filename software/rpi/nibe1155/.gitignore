@@ -3,3 +3,5 @@
 **/dist_remote
 **/logs
 **/keys/*.pem
+**/src-old
+**/dist_2022-03-08

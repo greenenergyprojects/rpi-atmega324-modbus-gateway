@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name rpi-atmega324-modbus-gateway-min-rescue)(type Legacy)(uri ${KIPRJMOD}/rpi-atmega324-modbus-gateway-min-rescue.lib)(options "")(descr ""))
+)
