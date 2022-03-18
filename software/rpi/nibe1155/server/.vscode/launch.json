@@ -1,0 +1,43 @@
+{
+    // Verwendet IntelliSense zum Ermitteln möglicher Attribute.
+    // Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.
+    // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Start",
+            "type": "pwa-node",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/src/main.ts",
+            "runtimeArgs": [ "--enable-source-maps" ],
+            // "preLaunchTask": "tsc: build - tsconfig.json",
+            "outFiles": [
+                "${workspaceFolder}/dist-new/**/*.js"
+            ],
+            "runtimeVersion": "16.14.0",
+            "console": "integratedTerminal"
+        },{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach pi-nibe1155:9201",
+			"address": "pi-nibe1155",
+			"port": 9201,
+			"restart": false,
+            "remoteRoot": "/home/pi/rpi/nibe1155/server/",
+			"localRoot": "${workspaceRoot}/",
+			"smartStep": true,
+			"stopOnEntry": false,
+			"trace": false,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceFolder}/dist-new/**/*.js"
+			],
+
+		}
+
+
+    ]
+}

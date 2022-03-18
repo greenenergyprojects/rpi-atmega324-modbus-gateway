@@ -4,7 +4,7 @@
   "description": "Node.js/Express server for hotwater controller",
   "main": "main.js",
   "scripts": {
-    "build": "node_modules/gulp/bin/gulp.js --gulpfile gulpfile.js build",
+    "build": "node_modules/typescript/bin/tsc",
     "tsc": "node_modules/typescript/bin/tsc",
     "remote": "node_modules/gulp/bin/gulp.js --gulpfile gulpfile.js remotePlatform",
     "rsync": "t=\"pi-nibe1155:/home/pi/rpi/nibe1155/server/\"; rsync -aP dist/ $t/dist-new/",
