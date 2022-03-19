@@ -13,6 +13,8 @@ import { Nibe1155 } from '../devices/nibe1155';
 import { HeatPump } from '../devices/heat-pump';
 import { Server } from '../server';
 import { INibe1155Controller, Nibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
+import { IHomeControlData } from '../data/common/nibe1155/home-control-data';
+import { HeatpumpControllerMode, IHeatPumpControllerConfig } from '../data/common/nibe1155/heat-pump-config';
 
 
 export class RouterNibe {
@@ -36,6 +38,7 @@ export class RouterNibe {
         // this._router.get('/register', (req, res, next) => this.getRegister(req, res, next));
         // this._router.get('/status', (req, res, next) => this.getStatus(req, res, next));
         this._router.post('/mode', (req, res, next) => this.postMode(req, res, next));
+        this._router.post('/home-control', (req, res, next) => this.postHomeControl(req, res, next));
     }
 
     private async all (req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -104,14 +107,19 @@ export class RouterNibe {
         }
     }
 
-    private async postMode (req: express.Request, res: express.Response, next: express.NextFunction) {
+
+    private postMode (req: express.Request, res: express.Response, next: express.NextFunction) {
+        this.postModeAsync(req, res, next)
+            .catch( error => debug.warn('postModeAsync() fails\n%e', error) );
+    }
+
+    private async postModeAsync (req: express.Request, res: express.Response, next: express.NextFunction) {
         try {
-            const body: INibe1155Controller = req.body;
+            const body: { controller: IHeatPumpControllerConfig, pin: string } = req.body;
             if (body.pin && !Server.getInstance().isPinOK(body.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
             try {
-                const x = new Nibe1155Controller(body);
-                const rv = await HeatPump.getInstance().setDesiredMode(x);
-                debug.fine('%s %s %s%s %o -> response: %o', req.method, req.host, req.baseUrl, req.url, body, rv);
+                const rv = await HeatPump.getInstance().setDesiredMode(body.controller);
+                debug.fine('%s %s %s%s %o -> response: %o', req.method, req.hostname, req.baseUrl, req.url, body, rv);
                 res.json(rv);
             } catch (err) {
                 throw new BadRequestError('cannot set mode', err);
@@ -120,5 +128,25 @@ export class RouterNibe {
             handleError(err, req, res, next, debug);
         }
     }
+
+    private postHomeControl (req: express.Request, res: express.Response, next: express.NextFunction) {
+        this.postHomeControlAsync(req, res, next)
+            .catch( error => debug.warn('postModeAsync() fails\n%e', error) );
+    }
+
+    private async postHomeControlAsync (req: express.Request, res: express.Response, next: express.NextFunction) {
+        try {
+            const body: { monitorRecord?: IHomeControlData, pin?: string } = req.body;
+            if (body.pin && !Server.getInstance().isPinOK(body.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
+            try {
+                res.json({});
+            } catch (err) {
+                throw new BadRequestError('cannot handle home-control', err);
+            }
+        } catch (err) {
+            handleError(err, req, res, next, debug);
+        }
+    }
+
 
 }

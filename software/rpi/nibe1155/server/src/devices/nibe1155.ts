@@ -735,6 +735,7 @@ export class Nibe1155 {
     }
 
     public async writeDegreeMinutes (value: number): Promise<ModbusRequest> {
+        console.log('===========> writeDegreeMinutes ====> ', value );
         value = value * 10;
         value = Math.max(-30000, value);
         value = Math.min( 30000, value);
@@ -1053,6 +1054,30 @@ export class Nibe1155 {
 
     public get brinePumpSpeed (): Nibe1155Value {
         return this._brinePumpSpeed;
+    }
+
+    public get cutOffFrequActivated2 (): Nibe1155Value {
+        return this._cutOffFrequActivated2;
+    }
+
+    public get cutOffFrequActivated1 (): Nibe1155Value {
+        return this._cutOffFrequActivated1;
+    }
+
+    public get cutOffFrequStart2 (): Nibe1155Value {
+        return this._cutOffFrequStart2;
+    }
+
+    public get cutOffFrequStart1 (): Nibe1155Value {
+        return this._cutOffFrequStart1;
+    }
+
+    public get cutOffFrequStop2 (): Nibe1155Value {
+        return this._cutOffFrequStop2;
+    }
+
+    public get cutOffFrequStop1 (): Nibe1155Value {
+        return this._cutOffFrequStop1;
     }
 
     public toValuesObject (addTime = true): { [ id: string ]: string } {

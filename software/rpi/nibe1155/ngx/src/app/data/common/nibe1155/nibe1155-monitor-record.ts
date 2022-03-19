@@ -78,7 +78,7 @@ export class Nibe1155MonitorRecord extends DataRecord<INibe1155MonitorRecord> im
         const rv: INibe1155MonitorRecord = {
             createdAt: preserveDate ? this._createdAt : this._createdAt.getTime()
         };
-        if (this._controller)          { rv.controller =          this._controller.toObject(preserveDate); }
+        if (this._controller)          { rv.controller =          this._controller.toObject(); }
         if (this._logsetIds)           { rv.logsetIds =           Array.from(this._logsetIds); }
         return rv;
     }

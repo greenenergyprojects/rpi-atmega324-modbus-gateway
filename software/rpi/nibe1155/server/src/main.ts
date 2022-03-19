@@ -74,8 +74,6 @@ import { Nibe1155 } from './devices/nibe1155';
 import { HeatPump } from './devices/heat-pump';
 import { Statistics } from './statistics';
 
-import { HeatpumpControllerMode, Nibe1155Controller } from './data/common/nibe1155/nibe1155-controller';
-
 let modbus: ModbusSerial;
 
 doStartup();
