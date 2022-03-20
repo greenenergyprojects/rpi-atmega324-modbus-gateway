@@ -6,7 +6,9 @@ const debugState: debugsx.IFullLogger = debugsx.createFullLogger('HeatPump.State
 import { Nibe1155 } from './nibe1155';
 import { Nibe1155Controller, INibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
 import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpConfig, IHeatPumpControllerConfig } from '../data/common/nibe1155/heat-pump-config';
-import { timingSafeEqual } from 'crypto';
+import * as fs from 'fs';
+import { sprintf } from 'sprintf-js';
+import { setFlagsFromString } from 'v8';
 
 
 // export type State = 'init' | 'off' | 'error' | 'test' | 'frequency' | 'economy';
@@ -49,8 +51,8 @@ export class HeatPump {
     private inProgressSince: Date;
     private timer: NodeJS.Timer | undefined;
 
-
-    private _dm: { writtenAt: number; value: number } | undefined;
+    private _dataLogAt: number | undefined;
+    private _dm: { writtenAt: number; refreshAt?: number; value: number } | undefined;
     private _addHeaterEnabled: boolean | undefined;
     private _fmin = 20;
     private _fmax = 100;
@@ -179,14 +181,38 @@ export class HeatPump {
             debugState.info('[INIT]: start handleStateInit()');
         }
         try {
-            let x = 0;
-
             let dm = await this.nibe1155.getRegisterValue(43005, -1);
-            debug.info('%s: current DM (47212) = ', msgHeader, dm);
-            if (dm < 0 && dm > -360) {
-                dm = -800;
+            let fSet = 0;
+            switch (this.controller.mode) {
+                case 'frequency': fSet = this.controller.fSetpoint; break;
+                case 'temperature': fSet = this.controller.fSetpoint; break;
+                default: {
+                    const x = (this.controller as unknown as { fSetpoint: unknown }).fSetpoint;
+                    if (x !== undefined && typeof x === 'number' && x >= 0 && x <= 120) {
+                        debug.warn('[INIT]: set unintended fSetpoint to %sHz', x);
+                        fSet = x;
+                    }
+                }
             }
-            if (dm < 0) { 
+
+            debug.info('%s: fSet=%sHz, current DM (47212) = ', msgHeader, fSet, dm);
+            const startdm = {
+                rising: { 40: -200, 50: -246, 63: -257, 70: -257, 80: -307, 90: -292 }, // 3.3°C, Puffer 41°, VL/RL: 45°, 40°
+                falling: { 40: -202, 60: -218,  } // 60: -181  // 80: -260
+            };
+            if (fSet >= 80) {
+                dm = -300;
+            } else if (fSet >= 60) {
+                dm = -250;
+            } else if (fSet >= 40) {
+                dm = -200;
+            } else if (fSet >= 20) {
+                dm = -150;
+            } else {
+                dm = 100;
+            }
+
+            if (dm < 0) {
                 await this.nibe1155.writeDegreeMinutes(dm);
                 this._dm = {
                     writtenAt: Date.now(),
@@ -207,18 +233,6 @@ export class HeatPump {
             }
             debug.info('[INIT]: add heater max power (47212) = ', pmax);
 
-            let fSet = 0;
-            switch (this.controller.mode) {
-                case 'frequency': fSet = this.controller.fSetpoint; break;
-                case 'temperature': fSet = this.controller.fSetpoint; break;
-                default: {
-                    const x = (this.controller as unknown as { fSetpoint: unknown }).fSetpoint;
-                    if (x !== undefined && typeof x === 'number' && x >= 0 && x <= 120) {
-                        debug.warn('[INIT]: set unintended fSetpoint to %sHz', x);
-                        fSet = x;
-                    }
-                }
-            }
 
             const fmax = this.nibe1155.condensorOutTemp.value <= this._tHigh ? this._fmax : this._fmaxTHigh;
             const fTarget = fSet > fmax ? fmax : fSet;
@@ -401,6 +415,8 @@ export class HeatPump {
 
         const cf1 = { isActive: -1, start: -1, stop:  -1, activate: 1, min: this._cut1.min, max: this._cut1.max };
         const cf2 = { isActive: -1, start: -1, stop:  -1, activate: 1, min: this._cut2.min, max: this._cut2.max };
+
+        fTarget = fTarget + 5;
 
         if (fTarget < cf1.min) {
             cf1.activate = 1;
@@ -613,10 +629,12 @@ export class HeatPump {
         try {
             const pAdd = this.nibe1155.electricHeaterPower.value;
             const tCond = this.nibe1155.condensorOutTemp.value;
-            const tSupply = this.nibe1155.supplyS1Temp.value;
+            const tPuffer = this.nibe1155.supplyTemp.value;
+            const tSupplyS1 = this.nibe1155.supplyS1Temp.value;
+            const tSupplyS1Return = this.nibe1155.supplyS1ReturnTemp.value;
             const fComp = this.nibe1155.compressorFrequency.value;
             const oldDm = this.nibe1155.degreeMinutes.value;
-            if (typeof tCond !== 'number' || typeof tSupply !== 'number' || typeof fComp !== 'number' || typeof oldDm !== 'number') {
+            if (typeof tCond !== 'number' || typeof tSupplyS1 !== 'number' || typeof fComp !== 'number' || typeof oldDm !== 'number') {
                 throw new Error(msgHeader + ': updateDmAsync() fails, invalid register values');
             }
 
@@ -656,37 +674,49 @@ export class HeatPump {
 
             // debugger;
             let dm = this._dm ? this._dm.value : oldDm;
-            if (!this._dm || (this._dm.writtenAt > 0 && (Date.now() - this._dm.writtenAt) >= 10000)) {
+            if (!this._dm || !this._dm.refreshAt || (this._dm.refreshAt > 0 && (Date.now() - this._dm.refreshAt) >= 10000)) {
+                if (this._dm) {
+                    this._dm.refreshAt = Date.now();
+                }
+
                 const diff = fComp - fTarget;
 
-                if (diff > 30) {
-                    dm = dm + 30;
-                } else if (diff > 20) {
-                    dm = dm + 20;
-                } else if (diff > 10) {
-                    dm = dm + 10;
-                } else if (diff > 5) {
-                    dm = dm + 3;
-                } else if (diff > 1) {
+                // if (diff > 30) {
+                //     dm = dm + 30;
+                // } else if (diff > 20) {
+                //     dm = dm + 20;
+                // } else if (diff > 10) {
+                //     dm = dm + 5;
+                // } else if (diff > 5) {
+                //     dm = dm + 3;
+                // } else if (diff > 0) {
+                //     dm = dm + 2;
+                // } else if (diff > -1) {
+
+                //     dm = dm;
+
+                // } else if (diff >= -5) {
+                //     dm = dm - 2;
+                // } else if (diff >= -10) {
+                //     dm = dm - 3;
+                // } else if (diff >= -20) {
+                //     dm = dm - 5;
+                // } else if (diff >= -30) {
+                //     dm = dm - 20;
+                // } else {
+                //     dm = dm - 30;
+                // }
+
+                if (diff > 5) {
+                    dm = dm + 2;
+                } else if (diff > 0) {
                     dm = dm + 1;
-
-                } else if (diff >= -1) {
-                    if (dm > -450) {
-                        dm = dm - 1;
-                    } else if (dm < -600) {
-                        dm = dm + 1;
-                    }
-
-                } else if (diff >= -5) {
-                    dm = dm - 1;
-                } else if (diff >= -10) {
-                    dm = dm - 3;
-                } else if (diff >= -20) {
-                    dm = dm - 10;
-                } else if (diff >= -30) {
-                    dm = dm - 20;
+                } else if (diff > -0.5) {
+                    dm = dm;
+                } else if (diff > -5) {
+                    dm = dm - 2;
                 } else {
-                    dm = dm - 30;
+                    dm = dm - 1;
                 }
             }
 
@@ -709,16 +739,41 @@ export class HeatPump {
             } else if (dm >= 0) {
                 dm = -10;
             }
-            if (dm < -1000) {
-                dm = -1000;
+            if (dm < -1200) {
+                dm = -1200;
             }
+            if (fSet >= 0) {
+                try {
+                    let s = '';
+                    if (this._dataLogAt === undefined) {
+                        this._dataLogAt = Date.now();
+                        s += 'Epoch-Time\tdt\tfSet\tfTarget\tfComp\tpMax\tpAdd\ttCond\ttVL\ttRL\ttPuf\toldDm\tdm\n';
+                    }
+                    const now = Date.now();
+                    const dt = Math.round((now - this._dataLogAt) / 100) / 10;
+                    s += sprintf('%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\n',
+                        now, dt, fSet, fTarget, fComp, pMax, pAdd, tCond, tSupplyS1, tSupplyS1Return, tPuffer, oldDm, dm);
+                    s = s.replace(/\./g, ',');
+                    fs.appendFile('/var/log/nibe1155/data.log', s, (error) => {
+                        if (error) {
+                            debug.warn('%s: data log fs.appendFile() fails\n%e', msgHeader, error);
+                        }
+                        this._dataLogAt = now;
+                    });
+                } catch (error) {
+                    debug.warn('%s: write to data log fails\n%e', msgHeader, error);
+                }
+            }
+
             if (dm !== oldDm) {
                 debug.info('%s: fSet=%dHz, Padd=%sW --> fTarget=%dHz --> f=%dHz, Padd=%sW, tCond=%d°C, current DM=%d -> write new DM %d',
                     msgHeader, fSet, pMax, fTarget, fComp, pAdd, tCond, oldDm, dm);
                 await this.nibe1155.writeDegreeMinutes(dm); // 43005
+                const refreshAt = this._dm.refreshAt;
                 this._dm = {
                     value: dm,
-                    writtenAt: Date.now()
+                    writtenAt: Date.now(),
+                    refreshAt
                 };
             } else {
                 debug.info('%s: fSet=%dHz, Padd=%sW --> fTarget=%dHz --> f=%dHz, Padd=%sW, tCond=%d°C, current DM=%d',
