@@ -135,7 +135,7 @@ export class Auth {
             };
             const userAuth: IUserAuth = {
                  userid: req.user.userid,
-                 token: { type: 'asscess', value: this.createAccessToken(tokenContent) }
+                 token: { type: 'access', value: this.createAccessToken(tokenContent) }
             };
             if (m.surename) { userAuth.surename = m.surename; }
             if (m.firstname) { userAuth.firstname = m.firstname; }

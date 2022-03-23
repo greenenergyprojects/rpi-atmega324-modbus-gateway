@@ -1,6 +1,7 @@
 
 
 export const VERSION = '0.3.3';
+process.env.TZ = 'Europe/Vienna';
 
 import * as fs from 'fs';
 import * as path from 'path';

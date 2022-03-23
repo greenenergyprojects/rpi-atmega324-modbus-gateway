@@ -8,7 +8,7 @@ export class CommonLogger {
         debug.info(msg);
     }
 
-    public static warn (src: any, msg: string, cause?: any) {
+    public static warn (src: any, msg?: string, cause?: any) {
         if (msg && cause instanceof Error) {
             debug.warn('%s\n%e', msg, cause);
         } else if (msg) {

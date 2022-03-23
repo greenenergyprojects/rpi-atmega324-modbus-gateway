@@ -2,7 +2,7 @@
 import { AttributeParser as ap } from '../attribute-parser';
 import { CommonLogger } from '../../common-logger';
 
-import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpConfig, IHeatPumpControllerConfig } from './heat-pump-config';
+import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpControllerConfig } from './heat-pump-config';
 
 
 export interface INibe1155Controller {
@@ -35,7 +35,7 @@ export class Nibe1155Controller implements INibe1155Controller {
 
     constructor (data: INibe1155Controller) {
         try {
-            this.createdAt = ap.parseDate(data.createdAt, 'createdAt');
+            this.createdAt = ap.parseDate(data.createdAt, 'createdAt', { allowMillis: true, allowString: true });
             this.config = HeatPumpConfig.parseHeatPumpControllerConfig(data.config);
             this.state = ap.parseEnum<HeatpumpControllerMode>(data.state, 'state', HeatpumpControllerMode);
             this.fCompressor = ap.parseNumber(data.fCompressor, 'fCompressor', { min: 0, max: 120 });

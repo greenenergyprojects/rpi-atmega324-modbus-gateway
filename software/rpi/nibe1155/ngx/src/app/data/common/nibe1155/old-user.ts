@@ -8,7 +8,7 @@ export interface IUserLogin {
 
 export interface IUserAuth extends IUser {
     userid: string;
-    token: { type: 'remote' | 'access', value: string };
+    token: { type: 'remote' | 'asscess', value: string };
     surename?: string;
     firstname?: string;
     isAdmin?: boolean;

@@ -714,9 +714,9 @@ export class HeatPump {
                 } else if (diff > -0.5) {
                     dm = dm;
                 } else if (diff > -5) {
-                    dm = dm - 2;
-                } else {
                     dm = dm - 1;
+                } else {
+                    dm = dm - 5;
                 }
             }
 
@@ -733,12 +733,18 @@ export class HeatPump {
             }
 
             if (fSet < this._fmin + 3) {
-                dm = pMax > 0 ? -450 : -50;
-            } else if (pMax > 0 && dm >= -450) {
-                dm = -450;
+                dm = -50;
             } else if (dm >= 0) {
                 dm = -10;
             }
+            if (pMax > 0) {
+                const dmMin = -500 - (pMax / 6500 * 500);
+                if (dm > dmMin) {
+                    dm = dmMin;
+             }
+            }
+
+
             if (dm < -1200) {
                 dm = -1200;
             }
@@ -747,18 +753,22 @@ export class HeatPump {
                     let s = '';
                     if (this._dataLogAt === undefined) {
                         this._dataLogAt = Date.now();
-                        s += 'Epoch-Time\tdt\tfSet\tfTarget\tfComp\tpMax\tpAdd\ttCond\ttVL\ttRL\ttPuf\toldDm\tdm\n';
+                        s += 'Epoch-Time\tdt\tMinutes\tDate-----\tTime-----\tfSet\tfTarget\tfComp\tpMax\tpAdd\ttCond\ttVL\ttRL\ttPuf\toldDm\tdm\n';
                     }
-                    const now = Date.now();
-                    const dt = Math.round((now - this._dataLogAt) / 100) / 10;
-                    s += sprintf('%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\n',
-                        now, dt, fSet, fTarget, fComp, pMax, pAdd, tCond, tSupplyS1, tSupplyS1Return, tPuffer, oldDm, dm);
+                    const now = new Date();
+                    const dt = Math.round((now.getTime() - this._dataLogAt) / 100) / 10;
+                    const date = sprintf('%4d-%02d-%02d', now.getFullYear(), now.getMonth() + 1, now.getDate());
+                    const time = sprintf('%02d:%02d:%02d', now.getHours(), now.getMinutes(), now.getSeconds());
+                    let mins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 + now.getMilliseconds() / 60 / 1000;
+                    mins = Math.round(mins * 100) / 100;
+                    s += sprintf('%d\t%.1f\t%.2f\t%s\t%s\t%.1f\t%.1f\t%.1f\t%d\t%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\n',
+                        now.getTime(), dt, mins, date, time, fSet, fTarget, fComp, pMax, pAdd, tCond, tSupplyS1, tSupplyS1Return, tPuffer, oldDm, dm);
                     s = s.replace(/\./g, ',');
                     fs.appendFile('/var/log/nibe1155/data.log', s, (error) => {
                         if (error) {
                             debug.warn('%s: data log fs.appendFile() fails\n%e', msgHeader, error);
                         }
-                        this._dataLogAt = now;
+                        this._dataLogAt = now.getTime();
                     });
                 } catch (error) {
                     debug.warn('%s: write to data log fails\n%e', msgHeader, error);
