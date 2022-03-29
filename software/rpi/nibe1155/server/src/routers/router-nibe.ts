@@ -139,6 +139,9 @@ export class RouterNibe {
             const body: { monitorRecord?: IHomeControlData, pin?: string } = req.body;
             if (body.pin && !Server.getInstance().isPinOK(body.pin)) { throw new AuthenticationError('missing/invalid PIN'); }
             try {
+                if (body.monitorRecord) {
+                    debug.info('from home-control: %o', body.monitorRecord );
+                }
                 res.json({});
             } catch (err) {
                 throw new BadRequestError('cannot handle home-control', err);

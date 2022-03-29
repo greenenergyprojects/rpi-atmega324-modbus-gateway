@@ -732,12 +732,12 @@ export class Nibe1155MonitorRecord extends DataRecord<INibe1155MonitorRecord> im
         const ts = this._controller.createdAt;
         if (!(ts instanceof Date)  || ts.getTime() < tMin) { return null; }
         let rv: number | undefined;
-        switch (this._controller.config.mode) {
+        switch (this._controller.controller.mode) {
             case 'off': rv = 0; break;
-            case 'frequency': rv = this._controller.config.fSetpoint; break;
-            case 'temperature': rv = this._controller.config.fSetpoint; break;
+            case 'frequency': rv = this._controller.controller.fSetpoint; break;
+            case 'temperature': rv = this._controller.controller.fSetpoint; break;
             default: {
-                const x = (this._controller.config as unknown as { fSetpoint?: number }).fSetpoint;
+                const x = (this._controller.controller as unknown as { fSetpoint?: number }).fSetpoint;
                 if (typeof x === 'number' ) {
                     rv = x;
                 }

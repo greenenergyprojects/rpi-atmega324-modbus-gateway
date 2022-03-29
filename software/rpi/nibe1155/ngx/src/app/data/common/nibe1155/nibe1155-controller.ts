@@ -2,12 +2,12 @@
 import { AttributeParser as ap } from '../attribute-parser';
 import { CommonLogger } from '../../common-logger';
 
-import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpControllerConfig } from './heat-pump-config';
+import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpConfig, IHeatPumpControllerConfig } from './heat-pump-config';
 
 
 export interface INibe1155Controller {
     createdAt: Date | number | string;
-    config: IHeatPumpControllerConfig;
+    controller: IHeatPumpControllerConfig;
     state: HeatpumpControllerMode;
     fCompressor: number;
     pAddHeater: number;
@@ -22,7 +22,7 @@ export interface INibe1155Controller {
 export class Nibe1155Controller implements INibe1155Controller {
 
     public readonly createdAt: Date;
-    public readonly config: IHeatPumpControllerConfig;
+    public readonly controller: IHeatPumpControllerConfig;
     public readonly state: HeatpumpControllerMode;
     public readonly fCompressor: number;
     public readonly pAddHeater: number;
@@ -36,7 +36,7 @@ export class Nibe1155Controller implements INibe1155Controller {
     constructor (data: INibe1155Controller) {
         try {
             this.createdAt = ap.parseDate(data.createdAt, 'createdAt', { allowMillis: true, allowString: true });
-            this.config = HeatPumpConfig.parseHeatPumpControllerConfig(data.config);
+            this.controller = HeatPumpConfig.parseHeatPumpControllerConfig(data.controller);
             this.state = ap.parseEnum<HeatpumpControllerMode>(data.state, 'state', HeatpumpControllerMode);
             this.fCompressor = ap.parseNumber(data.fCompressor, 'fCompressor', { min: 0, max: 120 });
             this.pAddHeater = ap.parseNumber(data.pAddHeater, 'pAddHeater', { min: 0, max: 6500 });
@@ -53,7 +53,7 @@ export class Nibe1155Controller implements INibe1155Controller {
 
     public toObject (): INibe1155Controller {
         return ap.toObject<INibe1155Controller>(this, { callbacks: {
-            config: (x) => x as IHeatPumpControllerConfig
+            controller: (x) => x as IHeatPumpControllerConfig
         }});
     }
 

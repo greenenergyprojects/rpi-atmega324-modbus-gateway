@@ -11,24 +11,31 @@ export enum HeatpumpControllerMode {
     disabled = 'disabled'
 }
 
-export interface IHeatPumpConfigOff {
+export interface IHeatPumpConfigBase {
+    set: {
+        at: Date;
+        by: string;
+    };
+}
+
+export interface IHeatPumpConfigOff extends IHeatPumpConfigBase {
     mode: HeatpumpControllerMode.off;
 }
 
-export interface IHeatPumpConfigFrequency {
+export interface IHeatPumpConfigFrequency extends IHeatPumpConfigBase  {
     mode: HeatpumpControllerMode.frequency;
     fSetpoint: number;
     pAddHeater: 0 | 500 | 1000 | 1500 | 2000 | 2500 | 3000 | 3500 | 4000 | 4500 | 5000 | 5500 | 6000 | 6500 | number;
 }
 
-export interface IHeatPumpConfigTemperature {
+export interface IHeatPumpConfigTemperature extends IHeatPumpConfigBase  {
     mode: HeatpumpControllerMode.temperature;
     fSetpoint: number;
     tMin: number;
     tMax: number;
 }
 
-export interface IHeatPumpConfigTest {
+export interface IHeatPumpConfigTest extends IHeatPumpConfigBase {
     mode: HeatpumpControllerMode.test;
 }
 
@@ -42,13 +49,18 @@ export interface IHeatPumpConfig {
 export class HeatPumpConfig implements IHeatPumpConfig {
 
     public static parseHeatPumpControllerConfig (config: IHeatPumpControllerConfig): IHeatPumpControllerConfig {
+        const set = {
+            at: ap.parseDate(config.set.at, 'set.at', { allowMillis: true }),
+            by: ap.parseString(config.set.by, 'set.by')
+        };
         switch (config.mode) {
             case HeatpumpControllerMode.off: {
-                return { mode: HeatpumpControllerMode.off };
+                return { mode: HeatpumpControllerMode.off, set };
             }
             case HeatpumpControllerMode.frequency: {
                 return {
                     mode: HeatpumpControllerMode.frequency,
+                    set,
                     fSetpoint: ap.parseNumber(config.fSetpoint, 'fSetpoint', { min: 20, max: 100 }),
                     pAddHeater: ap.parseNumber(config.pAddHeater, 'pAddHeater', { min: 0, max: 6500 })
                 };
@@ -56,6 +68,7 @@ export class HeatPumpConfig implements IHeatPumpConfig {
             case HeatpumpControllerMode.temperature: {
                 return {
                     mode: HeatpumpControllerMode.temperature,
+                    set,
                     fSetpoint: ap.parseNumber(config.fSetpoint, 'fSetpoint', { min: 20, max: 100 }),
                     tMin: ap.parseNumber(config.tMin, 'tMin', { min: 20, max: 60 }),
                     tMax: ap.parseNumber(config.tMin, 'tMax', { min: 20, max: 60 })

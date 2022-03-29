@@ -47,6 +47,7 @@ export class HeatPump {
     private controller: IHeatPumpControllerConfig;
     private state: HeatpumpControllerMode;
     // private _desiredState: HeatpumpControllerMode;
+    private controllerChanged = false;
     private recentState: HeatpumpControllerMode;
     private inProgressSince: Date;
     private timer: NodeJS.Timer | undefined;
@@ -72,7 +73,7 @@ export class HeatPump {
 
     private constructor (nibe1155: Nibe1155, config?: IHeatPumpConfig) {
         this.config = new HeatPumpConfig(config || { disabled: true });
-        this.controller = { mode: HeatpumpControllerMode.off };
+        this.controller = { mode: HeatpumpControllerMode.off, set: { at: new Date, by: 'constructor' } };
         this.nibe1155 = nibe1155;
         this.state = this.config.disabled
             ? HeatpumpControllerMode.disabled
@@ -90,7 +91,7 @@ export class HeatPump {
         }
         this.controller = this.config.start.length > 0
             ? this.config.start[0]
-            : { mode: HeatpumpControllerMode.off };
+            : { mode: HeatpumpControllerMode.off, set: { at: new Date(), by: 'start'} };
 
         this.timer = setInterval( () => this.handleStateMachineAsync(), 2000);
         process.nextTick( () => this.handleStateMachineAsync() );
@@ -110,6 +111,8 @@ export class HeatPump {
     public async setDesiredMode (config: IHeatPumpControllerConfig): Promise<INibe1155Controller> {
         try {
             const x = HeatPumpConfig.parseHeatPumpControllerConfig(config);
+            x.set.by = 'setDesiredMode.' + x.set.by + ')';
+            this.controllerChanged = true;
             this.controller = x;
             const rv = this.toObject();
             debug.info('setting desired mode %o -> %o', config, rv);
@@ -123,7 +126,7 @@ export class HeatPump {
     public toObject (): INibe1155Controller {
         const rv: INibe1155Controller = {
             createdAt: new Date(),
-            config: this.controller,
+            controller: this.controller,
             state: this.state,
             fCompressor: this.nibe1155.compressorFrequency.value,
             pAddHeater: this.nibe1155.electricHeaterPower.value,
@@ -146,9 +149,16 @@ export class HeatPump {
     }
 
     private async handleStateMachineAsync (): Promise<void> {
-        if (this.inProgressSince) { return; }
+        if (this.inProgressSince) {
+            const dt = Math.round( (Date.now() - this.inProgressSince.getTime()) / 1000);
+            if (dt > 30) {
+                debug.warn('handleStateMachineAsync() skipped (in progress since %ss)', dt);
+            }
+            return;
+        }
         try {
             this.inProgressSince = new Date();
+
             let nextState: HeatpumpControllerMode;
             switch (this.state) {
                 case 'init':        nextState = await this.handleStateInitAsync(); break;
@@ -253,10 +263,13 @@ export class HeatPump {
     private async handleStateOffAsync (): Promise<HeatpumpControllerMode> {
         const msgHeader = '[OFF]';
         try {
-            if (this.recentState !== HeatpumpControllerMode.off) {
+            if (this.recentState !== HeatpumpControllerMode.off || this.controllerChanged) {
                 debug.info('%s: start handleStateOff()', msgHeader);
+                this.controllerChanged = false;
+                await this.switchOffAsync(60000, HeatpumpControllerMode.off, true);
+            } else {
+                await this.switchOffAsync(60000, HeatpumpControllerMode.off);
             }
-            await this.switchOffAsync(60000, HeatpumpControllerMode.off);
             return this.controller.mode;
 
         } catch (error) {
@@ -509,7 +522,7 @@ export class HeatPump {
         };
     }
 
-    private async switchOffAsync (timeoutSeconds: number, checkState: HeatpumpControllerMode): Promise<void> {
+    private async switchOffAsync (timeoutSeconds: number, checkState: HeatpumpControllerMode, forceRegWrite?: boolean): Promise<void> {
         const msgHeader = '[' + checkState.toLocaleUpperCase() + '] switchOff';
         try {
             let f = this.nibe1155.compressorFrequency.value;
@@ -517,7 +530,7 @@ export class HeatPump {
             let supplySpeed = this.nibe1155.supplyPumpSpeed.value;
             let dm = this.nibe1155.degreeMinutes.value;
 
-            if (f > 0 || dm <= 0 ) {
+            if (f > 0 || dm <= 0 || forceRegWrite) {
                 debug.info('%s: switchOffAsync() starts with timeoutSeconds=%s', msgHeader, timeoutSeconds);
                 debug.info('%s: writeAddHeaterMaxPower(0)', msgHeader);
                 await this.nibe1155.writeAddHeaterMaxPower(0);
