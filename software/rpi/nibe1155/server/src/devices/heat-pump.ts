@@ -69,7 +69,7 @@ export class HeatPump {
 
     private _regTempMin: number | undefined;
     private _regTempMax: number | undefined;
-
+    private _regOutTemp: number | undefined;
 
     private constructor (nibe1155: Nibe1155, config?: IHeatPumpConfig) {
         this.config = new HeatPumpConfig(config || { disabled: true });
@@ -170,6 +170,7 @@ export class HeatPump {
                 default:
                     debugState.warn('state %s not supported', this.state); break;
             }
+            this._regOutTemp = await this.nibe1155.getRegisterValue(40004, -1);
             if (nextState && nextState !== this.state) {
                 this.recentState = this.state;
                 this.state = nextState;
@@ -766,7 +767,7 @@ export class HeatPump {
                     let s = '';
                     if (this._dataLogAt === undefined) {
                         this._dataLogAt = Date.now();
-                        s += 'Epoch-Time\tdt\tMinutes\tDate-----\tTime-----\tfSet\tfTarget\tfComp\tpMax\tpAdd\ttCond\ttVL\ttRL\ttPuf\toldDm\tdm\n';
+                        s += 'Epoch-Time\tdt\tMinutes\tDate-----\tTime-----\ttOut\tfSet\tfTarget\tfComp\tpMax\tpAdd\ttCond\ttVL\ttRL\ttPuf\toldDm\tdm\n';
                     }
                     const now = new Date();
                     const dt = Math.round((now.getTime() - this._dataLogAt) / 100) / 10;
@@ -774,8 +775,9 @@ export class HeatPump {
                     const time = sprintf('%02d:%02d:%02d', now.getHours(), now.getMinutes(), now.getSeconds());
                     let mins = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 + now.getMilliseconds() / 60 / 1000;
                     mins = Math.round(mins * 100) / 100;
-                    s += sprintf('%d\t%.1f\t%.2f\t%s\t%s\t%.1f\t%.1f\t%.1f\t%d\t%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\n',
-                        now.getTime(), dt, mins, date, time, fSet, fTarget, fComp, pMax, pAdd, tCond, tSupplyS1, tSupplyS1Return, tPuffer, oldDm, dm);
+                    s += sprintf('%d\t%.1f\t%.2f\t%s\t%s\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\t%.1f\t%.1f\t%.1f\t%.1f\t%d\t%d\n',
+                        now.getTime(), dt, mins, date, time, this._regOutTemp,
+                        fSet, fTarget, fComp, pMax, pAdd, tCond, tSupplyS1, tSupplyS1Return, tPuffer, oldDm, dm);
                     s = s.replace(/\./g, ',');
                     fs.appendFile('/var/log/nibe1155/data.log', s, (error) => {
                         if (error) {
