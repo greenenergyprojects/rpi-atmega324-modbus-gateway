@@ -5,8 +5,9 @@ const debugState: debugsx.IFullLogger = debugsx.createFullLogger('HeatPump.State
 
 import { Nibe1155 } from './nibe1155';
 import { Nibe1155Controller, INibe1155Controller } from '../data/common/nibe1155/nibe1155-controller';
-import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpConfig, IHeatPumpControllerConfig } from '../data/common/nibe1155/heat-pump-config';
+import { HeatPumpConfig, HeatpumpControllerMode, IHeatPumpConfig, IHeatPumpConfigFrequency, IHeatPumpConfigOff, IHeatPumpControllerConfig } from '../data/common/nibe1155/heat-pump-config';
 import * as fs from 'fs';
+import * as path from 'path';
 import { sprintf } from 'sprintf-js';
 import { setFlagsFromString } from 'v8';
 
@@ -156,7 +157,87 @@ export class HeatPump {
             }
             return;
         }
+       
         try {
+
+            //SX
+            const now = new Date();
+            let fSet: number | undefined;
+
+            const filename = path.join(__dirname, '..', '..', 'schedule.json');
+            try {
+                const json = fs.readFileSync(filename).toString();
+                try {
+                    const schedule = JSON.parse(json);
+                    if (!Array.isArray(schedule)) {
+                        throw new Error('not an array');
+                    }
+                    for (const ix of schedule) {
+                        let m = /^(\d+):(\d+)$/.exec(ix.start);
+                        if (!m || m.length !== 3) {
+                            throw new Error('invalid start in ' + JSON.stringify(ix.start));
+                        }
+                        const start = new Date(); start.setHours(+m[1]); start.setMinutes(+m[2]); start.setSeconds(0); start.setMilliseconds(0);
+                        if (+m[1] < 0 || +m[1] > 23 || +m[2] < 0 || +m[2] > 59) {
+                            throw new Error('invalid start in ' + JSON.stringify(ix.start));
+                        }
+                        m = /^(\d+):(\d+)$/.exec(ix.end);
+                        if (!m || m.length !== 3) {
+                            throw new Error('invalid end in ' + JSON.stringify(ix.start));
+                        }
+                        const end = new Date(); end.setHours(+m[1]); end.setMinutes(+m[2]); end.setSeconds(0); end.setMilliseconds(0);
+                        if (+m[1] < 0 || +m[1] > 23 || +m[2] < 0 || +m[2] > 59) {
+                            throw new Error('invalid end in ' + JSON.stringify(ix.start));
+                        }
+                        if (end.getTime() < Date.now()) {
+                            start.setTime(start.getTime() + 24 * 3600 * 1000);
+                            end.setTime(end.getTime() + 24 * 3600 * 1000);
+                        }
+        
+                        if (now.getTime() >= start.getTime() && now.getTime() <= end.getTime()) {
+                            debug.fine('schedule.json => execute "' + JSON.stringify(ix) + '"');
+                            if (typeof ix.f === 'number' && ix.f === 0) {
+                                fSet = 0;
+                                break;
+                            } else if (typeof ix.f === 'number' && ix.f <= 100) {
+                                fSet = ix.f;
+                                break;
+                            } else {
+                                throw new Error('invalid f in ' + JSON.stringify(ix.f));
+                            }
+                        }
+                    }
+                }
+                catch (error) {
+                    debug.warn('parsing schedule file "' + filename + '" fails\n%e', error);
+                }
+            }
+            catch (error) {
+                debug.info('no schedule file "' + filename + '" found');
+            }
+    
+            if (fSet !== undefined) {
+                const set = { at: now, by: 'schedule.json' };
+                if (fSet === 0 && this.state !== 'off') {
+                    debug.info('schedule.json: switch off...');
+                    this.setDesiredMode({ mode: 'off', set } as IHeatPumpConfigOff)
+                } else if (fSet > 0 && fSet <= 100 && fSet !== (this.controller.mode as unknown as IHeatPumpConfigFrequency).fSetpoint) {
+                    debug.info('schedule.json: set frequency to ' + fSet + 'Hz');
+                    this.setDesiredMode({ mode: 'frequency', fSetpoint: fSet, pAddHeater: 0, set} as IHeatPumpConfigFrequency)
+                }
+            }
+
+
+            // if (hh === 19 && mm === 0 && this.state !== 'frequency') {
+            //     debug.info('time to switch on...');
+            //     this.setDesiredMode({ mode: 'frequency', fSetpoint: 30, pAddHeater: 0, set} as IHeatPumpConfigFrequency)
+            // } else if (hh === 20 && (this.controller.mode as unknown as IHeatPumpConfigFrequency).fSetpoint !== 30) {
+            //     debug.info('time to switch off...');
+            //     this.setDesiredMode({ mode: 'off', set } as IHeatPumpConfigOff)
+            // } else {
+            //     debug.info('time checked ' + hh + ':' + mm + ', state=' +  this.state);
+            // }
+
             this.inProgressSince = new Date();
 
             let nextState: HeatpumpControllerMode;
@@ -826,4 +907,10 @@ interface ICutoffFrequencies {
         start: number;
         stop: number;
     };
+}
+
+interface IScheduleItem {
+    start: string;
+    end: string;
+    f: number;
 }

@@ -17,7 +17,7 @@
             "outFiles": [
                 "${workspaceFolder}/dist-new/**/*.js"
             ],
-            "runtimeVersion": "16.14.0",
+            "runtimeVersion": "16.19.0",
             "console": "integratedTerminal"
         },{
 			"type": "node",
