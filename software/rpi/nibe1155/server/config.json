@@ -19,6 +19,16 @@
          },
          "pin": "1234"
     },
+	"udpServer": {
+		"disabled": false,
+		"port": 5996,
+		"clients": [{
+			"id": "home-control-server",
+			"host": "localhost",
+			"host-nibe1155": "192.168.1.202",
+			"port": 2997
+		}]
+	},
     "auth": {
         "privatekey": "../keys/server-key.pem",
         "publickey": "../keys/server-pubkey.pem",

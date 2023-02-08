@@ -74,6 +74,7 @@ import { ModbusSerial } from './modbus/modbus-serial';
 import { Nibe1155 } from './devices/nibe1155';
 import { HeatPump } from './devices/heat-pump';
 import { Statistics } from './statistics';
+import { UdpServer } from './udp-server';
 
 let modbus: ModbusSerial;
 
@@ -216,6 +217,7 @@ async function startupServer (): Promise<void> {
         await DbUser.createInstance(configUsers);
         await Auth.createInstance(configAuth);
         await Server.getInstance().start();
+        await UdpServer.createInstanceAsync(nconf.get('udpServer') || { disabled: true });
     }
 }
 
