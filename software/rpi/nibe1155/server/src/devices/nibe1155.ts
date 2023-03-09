@@ -624,6 +624,11 @@ export class Nibe1155 {
         return this.getRegisterValue(this._addHeatingFuse.id, notOlderThanMillis);
     }
 
+    public async readDegreeMinutes (notOlderThanMillis?: number): Promise<number> {
+        return this.getRegisterValue(this._degreeMinutes.id, notOlderThanMillis);
+    }
+
+
     public async readIsAdditiveHeatingAllowed (notOlderThanMillis?: number): Promise<boolean> {
         const x = await this.getRegisterValue(this._allowAdditiveHeating.id, notOlderThanMillis);
         switch (x) {
@@ -980,6 +985,26 @@ export class Nibe1155 {
 
     // ************************************************************
 
+    public get alarm (): Nibe1155Value {
+        return this._alarm;
+    }
+
+    public get allowAdditiveHeating (): Nibe1155Value {
+        return this._allowAdditiveHeating;
+    }
+
+    public get allowHeating (): Nibe1155Value {
+        return this._allowHeating;
+    }
+
+    public get outdoorTemp (): Nibe1155Value {
+        return this._outdoorTemp;
+    }
+
+    public get roomTemp (): Nibe1155Value {
+        return this._roomTemp;
+    }
+
     public get supplyS1Temp (): Nibe1155Value {
         return this._supplyS1Temp;
     }
@@ -1078,6 +1103,18 @@ export class Nibe1155 {
 
     public get cutOffFrequStop1 (): Nibe1155Value {
         return this._cutOffFrequStop1;
+    }
+
+    public get operationalMode (): Nibe1155Value {
+        return this._operationalMode;
+    }
+
+    public get addHeatingMaxPower (): Nibe1155Value {
+        return this._addHeatingMaxPower;
+    }
+
+    public get energyCompAndElHeater (): Nibe1155Value {
+        return this._energyCompAndElHeater;
     }
 
     public toValuesObject (addTime = true): { [ id: string ]: string } {

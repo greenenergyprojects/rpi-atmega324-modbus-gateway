@@ -71,6 +71,7 @@ export class HeatPump {
     private _regTempMin: number | undefined;
     private _regTempMax: number | undefined;
     private _regOutTemp: number | undefined;
+    private _scheduleTable: IScheduleTable = { at: new Date(), items: [] };
 
     private constructor (nibe1155: Nibe1155, config?: IHeatPumpConfig) {
         this.config = new HeatPumpConfig(config || { disabled: true });
@@ -90,9 +91,12 @@ export class HeatPump {
         if (this.timer) {
             throw new Error('already started');
         }
+        console.log('===> config = ', this.config);
         this.controller = this.config.start.length > 0
             ? this.config.start[0]
             : { mode: HeatpumpControllerMode.off, set: { at: new Date(), by: 'start'} };
+
+        console.log('===> controller = ', this.controller);
 
         this.timer = setInterval( () => this.handleStateMachineAsync(), 2000);
         process.nextTick( () => this.handleStateMachineAsync() );
@@ -105,6 +109,10 @@ export class HeatPump {
         this.state = HeatpumpControllerMode.disabled;
     }
 
+    public get scheduleTable (): IScheduleTable {
+        return this._scheduleTable;
+    }
+
     public getState (): HeatpumpControllerMode {
         return this.state;
     }
@@ -114,6 +122,10 @@ export class HeatPump {
             const x = HeatPumpConfig.parseHeatPumpControllerConfig(config);
             x.set.by = 'setDesiredMode.' + x.set.by + ')';
             this.controllerChanged = true;
+            if (x.mode === 'temperature' && x.tMin >= x.tMax) {
+                debug.warn('parameter error: tMin = %s, tMax=%s', x.tMin, x.tMax);
+                x.tMax = x.tMin + 5;
+            }
             this.controller = x;
             const rv = this.toObject();
             debug.info('setting desired mode %o -> %o', config, rv);
@@ -164,6 +176,11 @@ export class HeatPump {
             const now = new Date();
             let fSet: number | undefined;
 
+            this._scheduleTable.at = new Date();
+            delete this._scheduleTable.active;
+            delete this._scheduleTable.error;
+            this._scheduleTable.items = [];
+
             const filename = path.join(__dirname, '..', '..', 'schedule.json');
             try {
                 const json = fs.readFileSync(filename).toString();
@@ -172,7 +189,7 @@ export class HeatPump {
                     if (!Array.isArray(schedule)) {
                         throw new Error('not an array');
                     }
-                    for (const ix of schedule) {
+                    for (const ix of schedule as IScheduleItem []) {
                         let m = /^(\d+):(\d+)$/.exec(ix.start);
                         if (!m || m.length !== 3) {
                             throw new Error('invalid start in ' + JSON.stringify(ix.start));
@@ -193,29 +210,35 @@ export class HeatPump {
                             start.setTime(start.getTime() + 24 * 3600 * 1000);
                             end.setTime(end.getTime() + 24 * 3600 * 1000);
                         }
-        
-                        if (now.getTime() >= start.getTime() && now.getTime() <= end.getTime()) {
+
+                        const tableItem = { start, end, f: ix.f }
+                        if (typeof ix.f === 'number' && ix.f >= 0 && ix.f <= 100) {
+                            this._scheduleTable.items.push(tableItem);
+                        } else {
+                            throw new Error('invalid f in ' + JSON.stringify(ix.f));
+                        }
+
+                        if (!this._scheduleTable.active && now.getTime() >= start.getTime() && now.getTime() <= end.getTime()) {
                             debug.fine('schedule.json => execute "' + JSON.stringify(ix) + '"');
-                            if (typeof ix.f === 'number' && ix.f === 0) {
-                                fSet = 0;
-                                break;
-                            } else if (typeof ix.f === 'number' && ix.f <= 100) {
-                                fSet = ix.f;
-                                break;
-                            } else {
-                                throw new Error('invalid f in ' + JSON.stringify(ix.f));
-                            }
+                            this._scheduleTable.active = tableItem;
                         }
                     }
                 }
                 catch (error) {
                     debug.warn('parsing schedule file "' + filename + '" fails\n%e', error);
+                    delete this._scheduleTable.active;
+                    this._scheduleTable.error = new Date().toISOString() + ': parsing schedule file ' + filename + ' fails';
                 }
             }
             catch (error) {
                 debug.info('no schedule file "' + filename + '" found');
+                this._scheduleTable.error = new Date().toISOString() + ': noschedule file ' + filename + ' found';
             }
-    
+
+            if (this._scheduleTable.active) {
+                fSet = this._scheduleTable.active.f;
+            }
+
             if (fSet !== undefined) {
                 const set = { at: now, by: 'schedule.json' };
                 if (fSet === 0 && this.state !== 'off') {
@@ -226,17 +249,6 @@ export class HeatPump {
                     this.setDesiredMode({ mode: 'frequency', fSetpoint: fSet, pAddHeater: 0, set} as IHeatPumpConfigFrequency)
                 }
             }
-
-
-            // if (hh === 19 && mm === 0 && this.state !== 'frequency') {
-            //     debug.info('time to switch on...');
-            //     this.setDesiredMode({ mode: 'frequency', fSetpoint: 30, pAddHeater: 0, set} as IHeatPumpConfigFrequency)
-            // } else if (hh === 20 && (this.controller.mode as unknown as IHeatPumpConfigFrequency).fSetpoint !== 30) {
-            //     debug.info('time to switch off...');
-            //     this.setDesiredMode({ mode: 'off', set } as IHeatPumpConfigOff)
-            // } else {
-            //     debug.info('time checked ' + hh + ':' + mm + ', state=' +  this.state);
-            // }
 
             this.inProgressSince = new Date();
 
@@ -686,7 +698,12 @@ export class HeatPump {
                     }
                     await this.updateTempMinMaxAsync(checkState);
                     debug.info('%s: DM=-100...', msgHeader);
-                    await this.nibe1155.writeDegreeMinutes(-100);
+                    for (let i = 0; i < 30; i++) {
+                        await this.nibe1155.writeDegreeMinutes(-100);
+                        console.log('===> write DM -100');
+                    }
+                    const dm = await this.nibe1155.readDegreeMinutes(0.001);
+                    console.log('===> read DM -> ', dm);
                     this._dm = {
                         writtenAt: Date.now(),
                         value: -100
@@ -907,6 +924,13 @@ interface ICutoffFrequencies {
         start: number;
         stop: number;
     };
+}
+
+export interface IScheduleTable {
+    at: Date;
+    items: { start: Date, end: Date; f: number } [];
+    active?: { start: Date, end: Date; f: number };
+    error?: string;
 }
 
 interface IScheduleItem {

@@ -1,6 +1,6 @@
 
 
-export const VERSION = '0.3.3';
+export const VERSION = '0.3.4';
 process.env.TZ = 'Europe/Vienna';
 
 import * as fs from 'fs';
